@@ -1,0 +1,50 @@
+{
+  "name": "netconf-client",
+  "version": "2.0.0",
+  "description": "Netconf Client",
+  "main": "dist/src/netconf.js",
+  "types": "dist/src/netconf.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/src/netconf.js",
+      "types": "./dist/src/netconf.d.ts"
+    }
+  },
+  "bin": {
+    "netconf": "dist/src/cli/main.js"
+  },
+  "dependencies": {
+    "getopts": "^2.3.0",
+    "object-as-tree": "^1.0.3",
+    "rxjs": "^7.8.2",
+    "ssh2": "^1.16.0",
+    "xml2js": "^0.6.2",
+    "yaml": "^2.7.1"
+  },
+  "scripts": {
+    "test": "vitest",
+    "lint": "eslint . --ext .ts",
+    "build": "tsc"
+  },
+  "author": "Sergey Kolotsey",
+  "license": "MIT",
+  "type": "module",
+  "devDependencies": {
+    "@eslint/compat": "^1.2.8",
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.24.0",
+    "@stylistic/eslint-plugin": "^4.2.0",
+    "@types/ssh2": "^1.15.5",
+    "@types/xml2js": "^0.4.14",
+    "@vitest/coverage-v8": "^3.1.2",
+    "eslint": "^9.24.0",
+    "eslint-plugin-decorator-position": "^6.0.0",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-sonarjs": "^3.0.2",
+    "eslint-plugin-unicorn": "^58.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.29.1",
+    "vitest": "^3.1.1"
+  }
+}
