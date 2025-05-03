@@ -1,5 +1,5 @@
 import { map, Observable, of } from 'rxjs';
-import { NetconfType, SafeAny } from './netconf-types';
+import { NetconfType, SafeAny } from './netconf-types.ts';
 
 /**
  * Build a configuration object for Netconf edit-config RPC based on the XPath filter.

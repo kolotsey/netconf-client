@@ -1,17 +1,15 @@
 {
   "name": "netconf-client",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Netconf Client",
-  "main": "dist/src/netconf.js",
-  "types": "dist/src/netconf.d.ts",
+  "main": "dist/lib/index.js",
+  "types": "dist/lib/index.d.ts",
   "exports": {
-    ".": {
-      "require": "./dist/src/netconf.js",
-      "types": "./dist/src/netconf.d.ts"
-    }
+    ".": "./dist/lib/index.js",
+    "./package.json": "./package.json"
   },
   "bin": {
-    "netconf": "dist/src/cli/main.js"
+    "netconf": "dist/cli/main.js"
   },
   "dependencies": {
     "getopts": "^2.3.0",
@@ -46,5 +44,19 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.29.1",
     "vitest": "^3.1.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kolotsey/netconf-client.git"
+  },
+  "keywords": [
+    "javascript",
+    "typescript",
+    "library",
+    "netconf",
+    "netconf-client",
+    "yang",
+    "rpc",
+    "confd"
+  ]
 }

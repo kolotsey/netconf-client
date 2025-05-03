@@ -1,8 +1,8 @@
 import { BehaviorSubject, catchError, combineLatest, EMPTY, filter, finalize, from, map, merge, NEVER, Observable, of, Subject, switchMap, take, takeUntil, tap, throwError, timeout, timer } from 'rxjs';
 import { Client, ClientChannel } from 'ssh2';
 import * as xml2js from 'xml2js';
-import { NETCONF_DELIM, NetconfBuffer } from './netconf-buffer';
-import { CreateSubscriptionRequest, HelloResult, HelloType, NetconfConnectionState, NetconfParams, NetconfType, NotificationResult, RpcErrorType, RpcReply, RpcReplyType, RpcResult, SafeAny, SSH_TIMEOUT } from './netconf-types';
+import { NETCONF_DELIM, NetconfBuffer } from './netconf-buffer.ts';
+import { CreateSubscriptionRequest, HelloResult, HelloType, NetconfConnectionState, NetconfParams, NetconfType, NotificationResult, RpcErrorType, RpcReply, RpcReplyType, RpcResult, SafeAny, SSH_TIMEOUT } from './netconf-types.ts';
 
 const NETCONF_DEBUG_LEVEL = 1;
 const NETCONF_DEBUG_TAG = 'NETCONF';

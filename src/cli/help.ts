@@ -1,6 +1,6 @@
 import { basename } from 'path';
-import { bold, cyan, green } from './output-colors';
-import { DEFAULT_PASS, DEFAULT_PORT, DEFAULT_USER, DEFAULT_XPATH } from './parse-args';
+import { bold, cyan, green } from './output-colors.ts';
+import { DEFAULT_PASS, DEFAULT_PORT, DEFAULT_USER, DEFAULT_XPATH } from './parse-args.ts';
 
 export function showHelp(): void {
   /**

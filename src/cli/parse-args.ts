@@ -1,9 +1,10 @@
-import getopts, { ParsedOptions } from 'getopts';
-import { version } from '../../package.json';
-import { GetDataResultType, NetconfType } from '../netconf-types';
-import { showHelp } from './help';
-import { Output } from './output';
-import { ConnArgs, parseConnStr } from './parse-conn-str';
+// import * as getoptsImport from 'getopts';
+import * as getoptsImport from 'getopts';
+import * as packageJson from '../../package.json' with { type: 'json' };
+import { GetDataResultType, NetconfType, SafeAny } from '../lib/index.ts';
+import { showHelp } from './help.ts';
+import { Output } from './output.ts';
+import { ConnArgs, parseConnStr } from './parse-conn-str.ts';
 
 export const DEFAULT_USER = 'admin';
 export const DEFAULT_PASS = 'admin';
@@ -243,6 +244,7 @@ export interface CliOptions {
 // eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity
 export function parseArgs(): CliOptions | undefined {
   let args = process.argv.slice(2);
+  const getopts = (getoptsImport as SafeAny).default as unknown as typeof import('getopts');
   const opt = getopts(args, {
     alias: {
       b: 'before-key',
@@ -299,7 +301,7 @@ export function parseArgs(): CliOptions | undefined {
   }
 
   if (opt.version) {
-    console.info(version);
+    console.info(packageJson.default.version);
     return undefined;
   }
 
@@ -508,7 +510,7 @@ function setNestedValue(obj: NetconfType, key: string, value: string): void {
  * @param connStr - Connection string, if present in command line arguments
  * @returns Connection arguments
  */
-function getConnectionArgs(opt: ParsedOptions, connStr?: string): ConnArgs {
+function getConnectionArgs(opt: getoptsImport.ParsedOptions, connStr?: string): ConnArgs {
   const envConfig = removeUndefined({
     host: process.env.NETCONF_HOST,
     port: process.env.NETCONF_PORT ? parseInt(process.env.NETCONF_PORT, 10) : undefined,

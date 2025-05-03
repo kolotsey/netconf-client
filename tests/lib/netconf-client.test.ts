@@ -1,8 +1,8 @@
 /* eslint-disable max-lines-per-function */
 import { firstValueFrom, Observable } from 'rxjs';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { NetconfClient } from '../src/netconf-client';
-import { NetconfType, RpcReply, SafeAny } from '../src/netconf-types';
+import { NetconfClient } from '../../src/lib/netconf-client';
+import { NetconfType, RpcReply, SafeAny } from '../../src/lib';
 
 // Mock ssh2 Client
 const mockOn = vi.fn();

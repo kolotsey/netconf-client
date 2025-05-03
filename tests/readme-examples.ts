@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 import { catchError, combineLatest, finalize, firstValueFrom, map, NEVER, Observable, of, Subject, switchMap, tap, timer } from 'rxjs';
-import { Netconf } from '../src/netconf';
+import { Netconf } from '../src/lib/netconf';
 
 /**
  * All examples from README.md file are implemented here.

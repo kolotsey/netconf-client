@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { SafeAny } from '../../src/netconf-types';
+import { SafeAny } from '../../src/lib';
 
 describe('output-colors', () => {
   describe('when colors are supported', () => {

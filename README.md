@@ -5,7 +5,8 @@
 A pure TypeScript library for interacting with Netconf/ConfD servers. This client provides powerful and easy-to-use
 features. Comes with a CLI tool for intuitive shell access and scripting.
 
-**This README file is for the Netconf Library. For the CLI tool, see [Netconf Console App](./CLI.md).**
+**This README file is for the Netconf Library. For the CLI tool,
+see [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).**
 
 ## Table of Contents
 
@@ -360,4 +361,4 @@ is incorrect.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](https://github.com/kolotsey/netconf-client/blob/main/LICENSE).

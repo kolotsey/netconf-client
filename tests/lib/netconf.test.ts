@@ -1,7 +1,6 @@
 import { firstValueFrom, Observable, of, Subject, tap } from 'rxjs';
 import { describe, expect, test, vi } from 'vitest';
-import { Netconf } from '../src/netconf';
-import { CreateSubscriptionRequest, GetDataResultType, NetconfParams, NetconfType, NotificationResult, RpcReply, RpcReplyType, SubscriptionOption } from '../src/netconf-types';
+import { CreateSubscriptionRequest, GetDataResultType, Netconf, NetconfParams, NetconfType, NotificationResult, RpcReply, RpcReplyType, SubscriptionOption } from '../../src/lib/index.ts';
 
 class NetconfTest extends Netconf {
   public fetchSchema(xpath: string): Observable<RpcReplyType> {

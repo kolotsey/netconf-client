@@ -1,5 +1,5 @@
 import { describe, expect, beforeEach, test } from 'vitest';
-import { NetconfBuffer, NETCONF_DELIM } from '../src/netconf-buffer';
+import { NetconfBuffer, NETCONF_DELIM } from '../../src/lib/netconf-buffer';
 
 describe('NetconfBuffer', () => {
   let buffer: NetconfBuffer;

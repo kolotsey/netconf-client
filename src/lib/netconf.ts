@@ -1,7 +1,7 @@
 import { endWith, map, MonoTypeOperatorFunction, Observable, of, Subject, switchMap, tap, throwError } from 'rxjs';
-import { NetconfBuildConfig } from './netconf-build-config';
-import { NetconfClient } from './netconf-client';
-import { CreateSubscriptionRequest, EditConfigResult, GetDataResult, GetDataResultType, MultipleEditError, NetconfParams, NetconfType, NotificationResult, RpcReply, RpcReplyType, RpcResult, SafeAny, SubscriptionOption } from './netconf-types';
+import { NetconfBuildConfig } from './netconf-build-config.ts';
+import { NetconfClient } from './netconf-client.ts';
+import { CreateSubscriptionRequest, EditConfigResult, GetDataResult, GetDataResultType, MultipleEditError, NetconfParams, NetconfType, NotificationResult, RpcReply, RpcReplyType, RpcResult, SafeAny, SubscriptionOption } from './netconf-types.ts';
 
 const NETCONF_DEBUG_LEVEL = 1;
 const NETCONF_DEBUG_TAG = 'NETCONF';

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, MockInstance, test, vi } from 
 import { stringify as yamlStringify } from 'yaml';
 import { catchMultipleEditError, setEditConfigStatus, writeData } from '../../src/cli/output-operators';
 import { ResultFormat } from '../../src/cli/parse-args';
-import { EditConfigResult, MultipleEditError, Result, SafeAny } from '../../src/netconf-types';
+import { EditConfigResult, MultipleEditError, Result, SafeAny } from '../../src/lib';
 
 describe('writeData', () => {
   let stdoutWrite: MockInstance;

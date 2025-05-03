@@ -1,0 +1,7 @@
+src
+tests
+.git
+.gitignore
+eslint.config.mjs
+vitest.config.ts
+lint.tsconfig.json

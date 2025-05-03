@@ -1,4 +1,4 @@
-import { NetconfType } from '../netconf-types';
+import { NetconfType } from '../lib/index.ts';
 
 export function resolveXPath(obj: NetconfType | undefined, xpathStr: string): NetconfType | undefined {
   if(obj === undefined) return undefined;

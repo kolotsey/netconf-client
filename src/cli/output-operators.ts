@@ -1,11 +1,11 @@
-import asTree from 'object-as-tree';
+import * as asTreeImport from 'object-as-tree';
 import { MonoTypeOperatorFunction, tap } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { stringify as yamlStringify } from 'yaml';
-import { EditConfigResult, MultipleEditError, Result, SafeAny } from '../netconf-types';
-import { Output } from './output';
-import { ResultFormat } from './parse-args';
-import { yellow } from './output-colors';
+import { EditConfigResult, MultipleEditError, Result, SafeAny } from '../lib/index.ts';
+import { yellow } from './output-colors.ts';
+import { Output } from './output.ts';
+import { ResultFormat } from './parse-args.ts';
 
 /**
  * RxJs operator - write the result to the console in the specified format
@@ -40,7 +40,8 @@ export function writeData(format: ResultFormat): MonoTypeOperatorFunction<Result
 
     case ResultFormat.TREE:
     default:
-      process.stdout.write(data.result as SafeAny === '' ? yellow('no result') : asTree(data.result));
+      const asTree = asTreeImport as unknown as typeof import('object-as-tree');
+      process.stdout.write(data.result as SafeAny === '' ? yellow('no result') : asTree.default(data.result));
       process.stdout.write('\n');
       break;
     }

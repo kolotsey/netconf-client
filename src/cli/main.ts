@@ -2,12 +2,11 @@
 
 import { firstValueFrom, NEVER, Observable, of, Subject, timer } from 'rxjs';
 import { defaultIfEmpty, filter, map, switchMap, takeUntil, tap } from 'rxjs/operators';
-import { Netconf } from '../netconf';
-import { NetconfType, NotificationResult, RpcResult, SSH_TIMEOUT } from '../netconf-types';
-import { Output } from './output';
-import { catchMultipleEditError, setEditConfigStatus, writeData } from './output-operators';
-import { CliOptions, OperationType, parseArgs } from './parse-args';
-import { resolveXPath } from './resolve-xpath';
+import { Netconf, NetconfType, NotificationResult, RpcResult, SSH_TIMEOUT } from '../lib/index.ts';
+import { Output } from './output.ts';
+import { catchMultipleEditError, setEditConfigStatus, writeData } from './output-operators.ts';
+import { CliOptions, OperationType, parseArgs } from './parse-args.ts';
+import { resolveXPath } from './resolve-xpath.ts';
 
 
 /**

@@ -1,4 +1,4 @@
-import { red, dim, styleFormat, StyleName } from './output-colors';
+import { red, dim, styleFormat, StyleName } from './output-colors.ts';
 
 export class Output {
   public static set verbosity(verbosity: number) {

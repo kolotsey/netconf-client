@@ -1,9 +1,9 @@
 /* eslint-disable max-lines-per-function */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { of } from 'rxjs';
-import { NetconfType } from '../src/netconf-types';
+import { NetconfType } from '../../src/lib';
 import { describe, expect, test } from 'vitest';
-import { NetconfBuildConfig } from '../src/netconf-build-config';
+import { NetconfBuildConfig } from '../../src/lib/netconf-build-config';
 
 describe('constructor', () => {
   test('should create instance', () => {

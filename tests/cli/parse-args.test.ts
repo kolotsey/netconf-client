@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { OperationType, parseArgs, ResultFormat } from '../../src/cli/parse-args';
 import { Output } from '../../src/cli/output';
-import { GetDataResultType } from '../../src/netconf-types';
+import { GetDataResultType } from '../../src/lib';
 
 // Mock process.argv and environment variables
 const ORIGINAL_ARGV = process.argv;
