@@ -173,8 +173,9 @@ describe('parse arguments', () => {
     [['--json'], ResultFormat.JSON],
     [['--xml'], ResultFormat.XML],
     [['--yaml'], ResultFormat.YAML],
+    [['--keyvalue'], ResultFormat.KEYVALUE],
     [[], ResultFormat.TREE],
-  ])('parse result format', (option, expected) => {
+  ])('parse result format for "%s"', (option, expected) => {
     process.argv = ['node', 'netconf', 'localhost', ...option];
     expect(parseArgs()).toEqual(expect.objectContaining({
       resultFormat: expected,
@@ -192,6 +193,59 @@ describe('parse arguments', () => {
       },
     }));
   });
+
+  test.each([
+    ['key=value', {key: 'value'}, 'keyvalue'],
+    ['[key=value]', ['key=value'], 'list'],
+  ])('correctly set operation values for "add" operation', (option, expected, expectedType) => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', 'add', option];
+    expect(parseArgs()).toEqual(expect.objectContaining({
+      operation: expect.objectContaining({
+        type: 'create',
+        options: expect.objectContaining({
+          editConfigValues: expect.objectContaining({
+            type: expectedType,
+            values: expected,
+          }),
+        }),
+      }),
+    }));
+  });
+
+  test.each([
+    ['key=value', {key: 'value'}, 'keyvalue'],
+    ['[key=value]', ['key=value'], 'list'],
+  ])('correctly set operation values for "del" operation', (option, expected, expectedType) => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', 'del', option];
+    expect(parseArgs()).toEqual(expect.objectContaining({
+      operation: expect.objectContaining({
+        type: 'delete',
+        options: expect.objectContaining({
+          editConfigValues: expect.objectContaining({
+            type: expectedType,
+            values: expected,
+          }),
+        }),
+      }),
+    }));
+  });
+
+  test('nested values', () => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', 'add', 'key.subkey=value'];
+    expect(parseArgs()).toEqual(expect.objectContaining({
+      operation: expect.objectContaining({
+        options: expect.objectContaining({
+          editConfigValues: expect.objectContaining({
+            values: {
+              key: {
+                subkey: 'value',
+              },
+            },
+          }),
+        }),
+      }),
+    }));
+  });
 });
 
 describe('error handling', () => {
@@ -204,8 +258,8 @@ describe('error handling', () => {
   });
 
   test('error on mixing array and key-value', () => {
-    process.argv = ['node', 'netconf', 'localhost', '/foo', 'a=1', 'b'];
-    expect(() => parseArgs()).toThrow('Cannot mix list (array) items and key-value pairs');
+    process.argv = ['node', 'netconf', 'localhost', '/foo', 'a=1', '[b]'];
+    expect(() => parseArgs()).toThrow('Cannot mix list items and key-value pairs');
   });
 
   test('error on mixing config-only and state-only', () => {
@@ -216,5 +270,20 @@ describe('error handling', () => {
   test('error on mixing result format', () => {
     process.argv = ['node', 'netconf', 'localhost', '--json', '--xml'];
     expect(() => parseArgs()).toThrow('Cannot mix --json, --xml and --yaml');
+  });
+
+  test('error when providing list items multiple times', () => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', '[a]', '[b]'];
+    expect(() => parseArgs()).toThrow('List items can only be provided once');
+  });
+
+  test('error when providing list items for non-list operations', () => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', '[a]'];
+    expect(() => parseArgs()).toThrow('List items can only be provided for create and delete operations');
+  });
+
+  test('error when list format is invalid', () => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', '[a'];
+    expect(() => parseArgs()).toThrow('Invalid list, List must be enclosed in square brackets');
   });
 });

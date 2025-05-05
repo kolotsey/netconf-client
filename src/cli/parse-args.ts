@@ -88,11 +88,25 @@ type MergeOptions = {
   /**
    * Key-value pairs to be merged into the set
    */
-  setVals?: NetconfType;
+  values?: NetconfType;
   /**
    * Allow multiple schema branches to be edited in a single operation
    */
   allowMultiple?: boolean;
+};
+
+type EditConfigValues = {
+  type: 'keyvalue';
+  /**
+   * Object of key-value pairs
+   */
+  values: NetconfType;
+} | {
+  type: 'list';
+  /**
+   * Array of values
+   */
+  values: string[];
 };
 
 /**
@@ -107,8 +121,9 @@ type CreateOptions = {
   xpath: string;
   /**
    * Key-value pairs to be created in the set
+   * or array of values to be added to the list
    */
-  setVals?: NetconfType;
+  editConfigValues: EditConfigValues;
   /**
    * Key to insert the new object before
    */
@@ -131,8 +146,9 @@ type DeleteOptions = {
   xpath: string;
   /**
    * Key-value pairs to be deleted from the set
+   * or array of values to be deleted from the list
    */
-  setVals?: NetconfType;
+  editConfigValues: EditConfigValues;
   /**
    * Allow multiple schema branches to be edited in a single operation
    */
@@ -167,7 +183,7 @@ type RpcOptions = {
   /**
    * Key-value pairs to be added to the RPC request
    */
-  setVals?: NetconfType;
+  values?: NetconfType;
 };
 
 type Operation =
@@ -184,6 +200,13 @@ export enum ResultFormat {
   JSON = 'json',
   XML = 'xml',
   YAML = 'yaml',
+  /**
+   * all data is printed in key=value format (nested keys are joined with a dot)
+   */
+  KEYVALUE = 'keyvalue',
+  /**
+   * all data is printed in tree format, useful for reviewing the data
+   */
   TREE = 'tree',
 }
 
@@ -224,11 +247,6 @@ export interface CliOptions {
   resultFormat: ResultFormat;
 
   /**
-   * Array values to be added
-   */
-  setArray?: string[];
-
-  /**
    * Only read the data from the server, no edit-config or RPC operations
    */
   readOnly?: boolean;
@@ -253,6 +271,7 @@ export function parseArgs(): CliOptions | undefined {
       h: 'help',
       H: 'host',
       j: 'json',
+      k: 'keyvalue',
       n: 'namespace',
       p: 'port',
       P: 'pass',
@@ -273,6 +292,7 @@ export function parseArgs(): CliOptions | undefined {
       'full-tree': false,
       host: undefined,
       json: false,
+      keyvalue: false,
       namespace: undefined,
       pass: undefined,
       port: undefined,
@@ -287,7 +307,7 @@ export function parseArgs(): CliOptions | undefined {
     },
     // eslint-disable-next-line id-denylist
     boolean: [
-      'allow-multiple', 'config-only', 'dry-run', 'full-tree', 'help', 'json', 'read-only', 'schema-only',
+      'allow-multiple', 'config-only', 'dry-run', 'full-tree', 'help', 'json', 'keyvalue', 'read-only', 'schema-only',
       'show-namespaces', 'state-only', 'version', 'verbose', 'xml', 'yaml', 'hello',
     ],
     unknown: (optionName: string): boolean => {
@@ -322,8 +342,8 @@ export function parseArgs(): CliOptions | undefined {
   let conn: string | undefined;
   let stream: string | undefined;
   let operationType: OperationType | undefined;
-  const setVals: NetconfType = {};
-  const setArray: string[] = [];
+  const keyValuePairs: Record<string, string> = {};
+  let listItems: string[] = [];
 
   // Parsing command line arguments and getting the requested XPath and credentials (if provided)
   args = opt._.filter(arg => arg !== '');
@@ -331,23 +351,26 @@ export function parseArgs(): CliOptions | undefined {
     // Operation
     const op = args[0].substring(0, 3).toLowerCase();
     if (op in OPERATION_ALIASES) {
-      const normalizedOp = OPERATION_ALIASES[op as keyof typeof OPERATION_ALIASES] || op;
-      if(Object.values(OperationType).includes(normalizedOp as OperationType)) {
-        operationType = normalizedOp as OperationType;
-      }else{
-        throw new Error(`Invalid operation: ${op}`);
-      }
+      const normalizedOp = OPERATION_ALIASES[op as keyof typeof OPERATION_ALIASES];
+      operationType = normalizedOp as OperationType;
       args.shift();
 
     // XPath
     } else if (args[0].substring(0, 1) === '/') {
       xpath = args.shift() as string;
 
+    // Test if the argument is a list item
+    } else if (args[0].startsWith('[')) {
+      // list item
+      if(listItems.length) {
+        throw new Error('List items can only be provided once');
+      }
+      listItems = addListItems(args.shift() as string);
+
     // Test if the argument is a var=val
     } else if (args[0].includes('=')) {
       // var=val
-      // Will be processed later as setVals
-      break;
+      pushKeyValuePair(keyValuePairs, args.shift() as string);
 
     // Connection string
     } else {
@@ -359,40 +382,26 @@ export function parseArgs(): CliOptions | undefined {
     }
   }
 
+  if(listItems.length && Object.keys(keyValuePairs).length){
+    throw new Error('Cannot mix list items and key-value pairs');
+  }
+
   // Get connection arguments
   const connArgs = getConnectionArgs(opt, conn);
 
-  // Parse key-value pairs and array values from the command line
-  while(args.length){
-    // Test if the argument is a var=val
-    if(args[0].includes('=')){
-      const arg = args.shift() as string;
-      const idx = arg.indexOf('=');
-      const key = arg.substring(0, idx);
-      const val = arg.substring(idx + 1);
-      setNestedValue(setVals, key, val);
-
-    // Treat as an array of values
-    }else{
-      const value=args.shift();
-      if(value){
-        setArray.push(value);
-      }
-    }
-  }
-  if(setArray.length && Object.keys(setVals).length){
-    throw new Error('Cannot mix list (array) items and key-value pairs');
-  }
 
   // Determine the operation type to be performed
   if(opt.hello){
     operationType = OperationType.HELLO;
-  }else if((setArray.length || Object.keys(setVals).length) && operationType === undefined){
-    // If there are array values or key-value pairs, and the operation is not set, change the operation to MERGE
+  }else if(Object.keys(keyValuePairs).length && operationType === undefined){
+    // If there are key-value pairs, and the operation is not set, change the operation to MERGE
     operationType = OperationType.MERGE;
   }else if(operationType === undefined){
     // If operation is not set, assume GET
     operationType = OperationType.GET;
+    if(listItems.length){
+      throw new Error('List items can only be provided for create and delete operations');
+    }
   }
 
   if(Number(opt['config-only']) + Number(opt['state-only']) + Number(opt['schema-only']) > 1){
@@ -412,7 +421,7 @@ export function parseArgs(): CliOptions | undefined {
             : opt['schema-only']
               ? GetDataResultType.SCHEMA
               : undefined,
-        fullTree: opt['full-tree'],
+        fullTree: opt['full-tree'] || opt['show-namespaces'],
         showNamespaces: opt['show-namespaces'],
       },
     }),
@@ -420,7 +429,7 @@ export function parseArgs(): CliOptions | undefined {
       type: OperationType.MERGE,
       options: {
         xpath: x ?? DEFAULT_XPATH,
-        setVals,
+        values: keyValuePairs,
         allowMultiple: opt['allow-multiple'],
       },
     }),
@@ -428,7 +437,15 @@ export function parseArgs(): CliOptions | undefined {
       type: OperationType.CREATE,
       options: {
         xpath: x ?? DEFAULT_XPATH,
-        setVals,
+        editConfigValues: Object.keys(keyValuePairs).length
+          ? {
+            type: 'keyvalue',
+            values: keyValuePairs,
+          }
+          : {
+            type: 'list',
+            values: listItems,
+          },
         beforeKey: opt['before-key'],
         allowMultiple: opt['allow-multiple'],
       },
@@ -437,7 +454,15 @@ export function parseArgs(): CliOptions | undefined {
       type: OperationType.DELETE,
       options: {
         xpath: x ?? DEFAULT_XPATH,
-        setVals,
+        editConfigValues: Object.keys(keyValuePairs).length
+          ? {
+            type: 'keyvalue',
+            values: keyValuePairs,
+          }
+          : {
+            type: 'list',
+            values: listItems,
+          },
         allowMultiple: opt['allow-multiple'],
       },
     }),
@@ -455,7 +480,7 @@ export function parseArgs(): CliOptions | undefined {
       type: OperationType.RPC,
       options: {
         cmd: x ?? DEFAULT_XPATH,
-        setVals,
+        values: keyValuePairs,
       },
     }),
   };
@@ -475,10 +500,18 @@ export function parseArgs(): CliOptions | undefined {
     namespace: opt.namespace,
     readOnly: opt['read-only'],
     resultFormat:
-      opt.json ? ResultFormat.JSON : opt.xml ? ResultFormat.XML : opt.yaml ? ResultFormat.YAML : ResultFormat.TREE,
+      opt.json ? ResultFormat.JSON : opt.xml ? ResultFormat.XML : opt.yaml ? ResultFormat.YAML
+        : opt.keyvalue ? ResultFormat.KEYVALUE : ResultFormat.TREE,
   };
 
   return cliOptions;
+}
+
+function pushKeyValuePair(obj: NetconfType, argument: string): void {
+  const idx = argument.indexOf('=');
+  const key = argument.substring(0, idx).trim();
+  const val = argument.substring(idx + 1);
+  setNestedValue(obj, key, val);
 }
 
 /**
@@ -501,6 +534,15 @@ function setNestedValue(obj: NetconfType, key: string, value: string): void {
   current[keys[keys.length - 1]] = value;
 }
 
+function addListItems(argument: string): string[] {
+  if(!RegExp(/^\[.*]$/).test(argument)) {
+    throw new Error('Invalid list, List must be enclosed in square brackets');
+  }
+  // remove square brackets
+  const val = argument.trim().substring(1, argument.length - 1);
+  // split on comma
+  return val.split(',').map(item => item.trim());
+}
 /**
  * Get connection arguments from environment or command line arguments or connection string
  * Command line arguments override environment variables.

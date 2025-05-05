@@ -1,7 +1,7 @@
-import { endWith, map, MonoTypeOperatorFunction, Observable, of, Subject, switchMap, tap, throwError } from 'rxjs';
+import { endWith, map, MonoTypeOperatorFunction, Observable, Subject, switchMap, tap, throwError } from 'rxjs';
 import { NetconfBuildConfig } from './netconf-build-config.ts';
 import { NetconfClient } from './netconf-client.ts';
-import { CreateSubscriptionRequest, EditConfigResult, GetDataResult, GetDataResultType, MultipleEditError, NetconfParams, NetconfType, NotificationResult, RpcReply, RpcReplyType, RpcResult, SafeAny, SubscriptionOption } from './netconf-types.ts';
+import { CreateSubscriptionRequest, EditConfigResult, GetDataResult, GetDataResultType, MultipleEditError, NetconfParams, NetconfPrimitiveType, NetconfType, NotificationResult, RpcReply, RpcReplyType, RpcResult, SafeAny, SubscriptionOption } from './netconf-types.ts';
 
 const NETCONF_DEBUG_LEVEL = 1;
 const NETCONF_DEBUG_TAG = 'NETCONF';
@@ -63,10 +63,7 @@ export class Netconf extends NetconfClient{
         if(this.params.readOnly){
           this.debug('Read-only mode. Would send the following request to the server:', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
           this.debug(JSON.stringify(targetObj, null, 2), NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
-          return of({
-            xml: '',
-            result: undefined,
-          });
+          throw new Error('Operation not performed: in read-only mode');
         }else{
           return this.rpcExec(targetObj);
         }
@@ -245,6 +242,41 @@ export class Netconf extends NetconfClient{
   }
 
   /**
+   * Creates a list item in the configuration.
+   *
+   * @param {string} xpath XPath filter of the object where the item needs to be created
+   * @param {NetconfPrimitiveType[]} listItems List of items to create
+   * @returns {Observable<EditConfigResult>} Observable of the result
+   */
+  public editConfigCreateListItems(xpath: string, listItems: NetconfPrimitiveType[]): Observable<EditConfigResult> {
+    const targetObj = {};
+    const schema = this.fetchSchema(xpath);
+
+    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+      this.checkMultipleEdit(),
+      tap((configObj: NetconfType[]) => {
+        configObj.forEach((o: NetconfType) => {
+          // Traverse the targetObj to find the parent of o
+          const foundParent = this.findParent(targetObj, o);
+          if(foundParent === undefined){
+            throw new Error('Failed to build the edit config message matching the XPath/Schema');
+          }
+          const parent = foundParent.parent;
+          const index = foundParent.index;
+          parent[index] = listItems.map((value: NetconfPrimitiveType) => ({
+            $: {
+              'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+              'nc:operation': 'create',
+            },
+            _: value,
+          }));
+        });
+      }),
+      switchMap(() => this.editConfig(targetObj)),
+    );
+  }
+
+  /**
    * Deletes a leaf in the configuration. Leaf is specified by XPath filter.
    *
    * @param {string} xpath XPath filter of the leaf where the item needs to be deleted
@@ -266,6 +298,40 @@ export class Netconf extends NetconfClient{
             'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
             'nc:operation': 'delete',
           };
+        });
+      }),
+      switchMap(() => this.editConfig(targetObj)),
+    );
+  }
+
+  /**
+   * Deletes a list item in the configuration.
+   *
+   * @param {string} xpath XPath filter of the object where the item needs to be deleted
+   * @param {NetconfPrimitiveType[]} listItems List of items to delete
+   * @returns {Observable<EditConfigResult>} Observable of the result
+   */
+  public editConfigDeleteListItems(xpath: string, listItems: NetconfPrimitiveType[]): Observable<EditConfigResult> {
+    const targetObj = {};
+    const schema = this.fetchSchema(xpath);
+
+    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+      this.checkMultipleEdit(),
+      tap((configObj: NetconfType[]) => {
+        configObj.forEach((o: NetconfType) => {
+          const foundParent = this.findParent(targetObj, o);
+          if(foundParent === undefined){
+            throw new Error('Failed to build the edit config message matching the XPath/Schema');
+          }
+          const parent = foundParent.parent;
+          const index = foundParent.index;
+          parent[index] = listItems.map((value: NetconfPrimitiveType) => ({
+            $: {
+              'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+              'nc:operation': 'delete',
+            },
+            _: value,
+          }));
         });
       }),
       switchMap(() => this.editConfig(targetObj)),
@@ -354,11 +420,7 @@ export class Netconf extends NetconfClient{
     if(this.params.readOnly){
       this.debug('Read-only mode. Would send the following request to the server:', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
       this.debug(JSON.stringify(request, null, 2), NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
-      return of({
-        success: undefined,
-        xml: '',
-        result: undefined,
-      });
+      throw new Error('Operation not performed: in read-only mode');
     }
 
     return this.rpcExec(request).pipe(
@@ -392,50 +454,35 @@ export class Netconf extends NetconfClient{
     });
   }
 
-  // async deleteArrayItems(xpath, itemsToRemove) {
-  //   return new Promise((resolve, reject) => {
-  //     // Get curretn values in the array
-  //     this.getItems(xpath).then((currentArrayValues) => {
-  //       if (!Array.isArray(currentArrayValues)) {
-  //         throw new Error('The target xpath is not an array');
-  //       }
-  //       const configObj = this.NetconfBuildConfig(xpath, itemsToRemove, 'delete');
-  //       const request = {
-  //         'edit-config': {
-  //           'target': {
-  //             "running": null
-  //           },
-  //           'config': configObj
-  //         }
-  //       };
-  //       Repository.lastRequest = request;
-  //       this.netconfClient.rpc(request).then((configResponse) => {
-  //         resolve(true);
-  //       }).catch((error) => {
-  //         reject(error);
-  //       });
-  //     }, (error) => {
-  //       reject(error);
-  //     });
-  //   });
-  // }
-  // async addArrayItems(xpath, arrayValues) {
-  //   return new Promise((resolve, reject) => {
-  //     const configObj = this.NetconfBuildConfig(xpath, arrayValues);
-  //     const request = {
-  //       'edit-config': {
-  //         'target': {
-  //           "running": null
-  //         },
-  //         'config': configObj
-  //       }
-  //     };
-  //     Repository.lastRequest = request;
-  //     this.netconfClient.rpc(request).then((configResponse) => {
-  //       resolve(true);
-  //     }).catch((error) => {
-  //       reject(error);
-  //     });
-  //   });
-  // }
+  /**
+   * Given an object and one of its children, recursively traverse the object to find the parent of the given child
+   * @param root - The root object
+   * @param obj - The child object
+   * @returns The child's parent object
+   */
+  // eslint-disable-next-line sonarjs/cognitive-complexity
+  private findParent(root: NetconfType, obj: NetconfType): {parent: NetconfType, index: number | string} | undefined {
+    if(Array.isArray(root)){
+      for(let i=0; i<root.length; i++){
+        if(root[i] === obj){
+          return {parent: root, index: i};
+        }
+        const ret = this.findParent(root[i] as NetconfType, obj);
+        if(ret) return ret;
+      }
+    }
+
+    if(typeof root === 'object' && root !== null){
+      for(const key of Object.keys(root)){
+        if(root.hasOwnProperty(key)){
+          if(root[key] === obj){
+            return {parent: root, index: key};
+          }
+          const ret = this.findParent(root[key] as NetconfType, obj);
+          if(ret) return ret;
+        }
+      }
+    }
+    return undefined;
+  }
 }

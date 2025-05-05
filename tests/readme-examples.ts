@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-magic-numbers */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
 import { catchError, combineLatest, finalize, firstValueFrom, map, NEVER, Observable, of, Subject, switchMap, tap, timer } from 'rxjs';
@@ -230,16 +229,34 @@ function subscribeToEventsRxJS(): Observable<void> {
     }),
   ).subscribe();
 
-  // Stop the subscription after 10 seconds
-  return timer(10000).pipe(
+  // Stop the subscription after 1 seconds
+  return timer(1000).pipe(
     tap(() => {
       stop$?.next();
       stop$?.complete();
     }),
     // Wait for the subscription to stop and connection to close
-    switchMap(() => timer(5)),
+    switchMap(() => timer(1000)),
     map(() => void 0),
   );
+}
+
+/**
+ * Example of debugging.
+ */
+async function exampleDebug(): Promise<void> {
+  const netconf = new Netconf({
+    host: HOST,
+    port: 2022,
+    user: 'admin',
+    pass: 'admin',
+    debug: (message: string, level: number) => {
+      // Set your level of verbosity here, 3 being the most verbose
+      if (level <= 1) console.log(message);
+    },
+  });
+  await firstValueFrom(netconf.hello());
+  await firstValueFrom(netconf.close());
 }
 
 async function main(): Promise<void> {
@@ -253,6 +270,7 @@ async function main(): Promise<void> {
     ['Custom RPC using RxJS',                              () => firstValueFrom(exampleCustomRpcRxJS())],
     ['Concurrency',                                        () => firstValueFrom(exampleConcurrencyRxJS())],
     ['Subscribe to events using RxJS',                     () => firstValueFrom(subscribeToEventsRxJS())],
+    ['Debugging',                                          exampleDebug],
   ];
 
   for (const [label, fn] of examples) {

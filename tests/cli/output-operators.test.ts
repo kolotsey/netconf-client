@@ -40,6 +40,18 @@ describe('writeData', () => {
     expect(stdoutWrite).toHaveBeenCalledWith(yamlStringify({ foo: 1 }));
   });
 
+  test('writes KEYVALUE', async () => {
+    const data = { xml: '', result: { foo: 1 } };
+    await firstValueFrom(of(data).pipe(writeData(ResultFormat.KEYVALUE)));
+    expect(stdoutWrite).toHaveBeenCalledWith('foo=1\n');
+  });
+
+  test('writes nothing if empty string for KEYVALUE', async () => {
+    const data = { xml: '', result: '' as SafeAny };
+    await firstValueFrom(of(data).pipe(writeData(ResultFormat.KEYVALUE)));
+    expect(stdoutWrite).not.toHaveBeenCalled();
+  });
+
   test('writes empty string for YAML', async () => {
     const data = { xml: '', result: '' as SafeAny };
     await firstValueFrom(of(data).pipe(writeData(ResultFormat.YAML)));
@@ -49,7 +61,7 @@ describe('writeData', () => {
   test('writes TREE', async () => {
     const data: Result = { xml: '', result: 'test' as SafeAny };
     await firstValueFrom(of(data).pipe(writeData(ResultFormat.TREE)));
-    expect(stdoutWrite).toHaveBeenCalledWith('"test"');
+    expect(stdoutWrite).toHaveBeenCalledWith('\'test\'');
   });
 
   test('writes "no result" for TREE', async () => {

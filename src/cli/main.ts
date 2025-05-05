@@ -4,10 +4,9 @@ import { firstValueFrom, NEVER, Observable, of, Subject, timer } from 'rxjs';
 import { defaultIfEmpty, filter, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { Netconf, NetconfType, NotificationResult, RpcResult, SSH_TIMEOUT } from '../lib/index.ts';
 import { Output } from './output.ts';
-import { catchMultipleEditError, setEditConfigStatus, writeData } from './output-operators.ts';
+import { catchMultipleEditError, setEditConfigStatus, setRpcConfigStatus, writeData } from './output-operators.ts';
 import { CliOptions, OperationType, parseArgs } from './parse-args.ts';
 import { resolveXPath } from './resolve-xpath.ts';
-
 
 /**
  * Execute the requested netconf operation
@@ -33,6 +32,7 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
         if (getOptions.fullTree){
           result = data.result;
         }else{
+          // result = stripParents(data.result);
           result = resolveXPath(data.result, getOptions.xpath);
         }
         data.result = result;
@@ -44,37 +44,48 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
 
   case OperationType.RPC:
     const rpcOptions = cliOptions.operation.options;
-    return client.rpc(rpcOptions.cmd, rpcOptions.setVals ?? {}).pipe(
+    return client.rpc(rpcOptions.cmd, rpcOptions.values ?? {}).pipe(
+      setRpcConfigStatus(),
       writeData(cliOptions.resultFormat),
       switchMap(() => client.close()),
     );
 
   case OperationType.MERGE:
     const mergeOptions = cliOptions.operation.options;
-    return client.editConfigMerge(mergeOptions.xpath, mergeOptions.setVals ?? {}).pipe(
+    return client.editConfigMerge(mergeOptions.xpath, mergeOptions.values ?? {}).pipe(
       catchMultipleEditError(),
       setEditConfigStatus(),
       writeData(cliOptions.resultFormat),
       switchMap(() => client.connectionState === 'uninitialized' ? of(void 0) : client.close()),
     );
 
-  case OperationType.CREATE:
+  case OperationType.CREATE: {
     const createOptions = cliOptions.operation.options;
-    return client.editConfigCreate(createOptions.xpath, createOptions.setVals ?? {}, createOptions.beforeKey).pipe(
-      catchMultipleEditError(),
-      setEditConfigStatus(),
-      writeData(cliOptions.resultFormat),
-      switchMap(() => client.connectionState === 'uninitialized' ? of(void 0) : client.close()),
-    );
+    const operation = createOptions.editConfigValues?.type === 'keyvalue'
+      ? client.editConfigCreate(createOptions.xpath, createOptions.editConfigValues.values, createOptions.beforeKey)
+      : client.editConfigCreateListItems(createOptions.xpath, createOptions.editConfigValues.values);
 
-  case OperationType.DELETE:
-    const deleteOptions = cliOptions.operation.options;
-    return client.editConfigDelete(deleteOptions.xpath, deleteOptions.setVals ?? {}).pipe(
+    return operation.pipe(
       catchMultipleEditError(),
       setEditConfigStatus(),
       writeData(cliOptions.resultFormat),
       switchMap(() => client.connectionState === 'uninitialized' ? of(void 0) : client.close()),
     );
+  }
+
+  case OperationType.DELETE: {
+    const deleteOptions = cliOptions.operation.options;
+    const operation = deleteOptions.editConfigValues?.type === 'keyvalue'
+      ? client.editConfigDelete(deleteOptions.xpath, deleteOptions.editConfigValues.values)
+      : client.editConfigDeleteListItems(deleteOptions.xpath, deleteOptions.editConfigValues.values);
+
+    return operation.pipe(
+      catchMultipleEditError(),
+      setEditConfigStatus(),
+      writeData(cliOptions.resultFormat),
+      switchMap(() => client.connectionState === 'uninitialized' ? of(void 0) : client.close()),
+    );
+  }
 
   case OperationType.SUBSCRIBE:
     const subscribeOptions = cliOptions.operation.options;

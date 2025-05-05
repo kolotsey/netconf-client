@@ -1,12 +1,13 @@
-# Javascript/Typescript Client Library and CLI for Netconf/ConfD
+# JavaScript/TypeScript Netconf Client Library & CLI
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A pure TypeScript library for interacting with Netconf/ConfD servers. This client provides powerful and easy-to-use
-features. Comes with a CLI tool for intuitive shell access and scripting.
+API. Comes with an intuitive CLI tool for shell access and scripting.
 
-**This README file is for the Netconf Library. For the CLI tool,
-see [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).**
+**Note:** This README covers the Netconf library. For CLI tool usage, see the [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
+
+---
 
 ## Table of Contents
 
@@ -15,51 +16,53 @@ see [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/C
 - [Quick Start](#quick-start)
 - [Installation](#installation)
 - [Usage Examples](#usage-examples)
-  - [Make a get-data request](#make-a-get-data-request)
-  - [Make an edit-config (merge) request](#make-an-edit-config-merge-request)
+  - [Get Data](#get-data)
+  - [Edit Config (Merge)](#edit-config-merge)
   - [Custom RPC](#custom-rpc)
   - [Concurrency](#concurrency)
-  - [Subscribe to events](#subscribe-to-events)
+  - [Subscribe to Events](#subscribe-to-events)
 - [API](#api)
+- [Troubleshooting](#troubleshooting)
 - [License](#license)
 
+---
 
 ## Description
 
-This project provides both a Netconf/ConfD client library for Javascript/Typescript and a user-friendly CLI app for
-interacting with Netconf servers. It is unique among Netconf libraries in that it allows you to use XPath expressions
-(including wildcards) to both read and modify values via Netconf. The aim is to simplify Netconf interactions, making
-them more straightforward and user-friendly.
+This project provides both a JavaScript/TypeScript Netconf client library and a user-friendly CLI for interacting with Netconf servers. It supports XPath expressions (including wildcards) for **both reading and modifying** values, making Netconf operations more straightforward and accessible.
 
 ## Features
 
-- Written in pure **TypeScript**
-- Uses **RxJS** - easy **concurrency** and error handling
-- **Read** and **modify** values using XPath expressions, including wildcards
-- API for **get/get-data**, **edit-config** (merge, create, delete operations), any custom **RPC** and **subscription**
-- Response is parsed into a Javascript object, original XML response is also returned
-- Comes with a CLI tool for quick shell access and scripting
-- (CLI) Multiple output formats: **JSON**, **XML**, **YAML**, **tree**
-- (CLI) Display server response as a tree object for easier reading
+- **TypeScript**: Written entirely in TypeScript.
+- **RxJS**: Easy concurrency and error handling.
+- **XPath**: Read and modify values using XPath expressions, including wildcards.
+- **API**: Provides _get/get-data_, _edit-config_ (merge, create, delete), _custom RPCs_, and _subscriptions_.
+- **Response**: Returns both parsed JavaScript objects and original XML responses.
+- **CLI Tool**: For quick shell access and scripting. See [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
+- **Flexible Output**: CLI supports _JSON_, _XML_, _YAML_, _key-value_ (for easy scripting), and _tree_ (for easy viewing) output formats.
+
 
 ## Quick Start
+
+Install the package:
 
 ```bash
 npm install netconf-client
 ```
 
+Basic usage:
+
 ```typescript
 import { Netconf } from 'netconf-client';
 import { firstValueFrom } from 'rxjs';
-const netconf = new Netconf({host: 'localhost', port: 2022, user: 'admin', pass: 'admin'});
-const data = await firstValueFrom(
-  netconf.getData('//aaa//user[name="admin"]')
-);
+
+const netconf = new Netconf({ host: 'localhost', port: 2022, user: 'admin', pass: 'admin' });
+const data = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
 ```
 
 ## Installation
 
-To use this package as a library in your project, install via npm:
+To use as a library in your project:
 
 ```bash
 npm install netconf-client
@@ -67,16 +70,15 @@ npm install netconf-client
 
 ## Usage Examples
 
-The examples below demonstrate how to use the library with both RxJS and Promises, so you can choose the style that
-best fits your needs.
+The library can be used with both RxJS and Promises, so you can choose whichever style fits your project.
 
-### Import the library:
+### Import the Library
 
 ```typescript
 import { Netconf } from 'netconf-client';
 ```
 
-### Make a get-data request:
+### Get Data
 
 Using promises:
 ```typescript
@@ -88,7 +90,8 @@ console.log((data.result as any)?.['confd-state'].version);
 // Close the connection
 await firstValueFrom(netconf.close());
 ```
-Or using RxJS observables:
+
+Using RxJS:
 ```typescript
 // Create a new Netconf instance
 const netconf = new Netconf({host: 'localhost', port: 2022, user: 'admin', pass: 'admin'});
@@ -101,12 +104,11 @@ netconf.getData('/confd-state/version').pipe(
 ).subscribe();
 ```
 
-### Make an edit-config (merge) request:
+### Edit Config (Merge)
 
-Don't forget to provide the AAA namespace which is required for edit-config operation on AAA module
+**Note:** provide the AAA namespace which is required for edit-config operation on AAA module.
 
 Using promises:
-
 ```typescript
 const netconf = new Netconf({
   host: 'localhost',
@@ -124,7 +126,7 @@ try {
 }
 ```
 
-Or using RxJS observables:
+Using RxJS:
 ```typescript
 const netconf = new Netconf({
   host: 'localhost',
@@ -171,7 +173,7 @@ try {
 }
 ```
 
-Or using RxJS observables:
+Using RxJS:
 ```typescript
 const netconf = new Netconf({
   host: 'localhost',
@@ -194,7 +196,7 @@ netconf.getData('/netconf-state/schemas/schema[1]').pipe(
 
 ### Concurrency
 
-Only in RxJS. Note that all requests are sent to the server immediately, one after another, without waiting for the previous request to complete.
+Only in RxJS.
 
 ```typescript
 combineLatest([
@@ -211,7 +213,7 @@ combineLatest([
 ).subscribe();
 ```
 
-### Subscribe to events:
+### Subscribe to events
 
 Example of event subscription using RxJS.
 
@@ -315,6 +317,14 @@ See the Library and CLI tool source code for more advanced usage examples.
     netconf.editConfigDelete('//aaa//user', {name: 'public'}); 
     ```
 
+- `.editConfigCreateListItems(xpath: string, listItems: string[]): Observable<EditConfigResult>`
+
+    Creates a list item in the configuration.
+
+- `.editConfigDeleteListItems(xpath: string, listItems: string[]): Observable<EditConfigResult>`
+
+    Deletes a list item in the configuration.
+
 - `.subscription(xpathOrStream: SubscriptionOption, stop$?: Subject<void>): Observable<NotificationResult | RpcResult | undefined>`
 
     Send a subscription request to the server and return an observable that emits notifications as they are received.
@@ -357,6 +367,19 @@ that the request misses a namespace. Provide the namespace using the `namespace`
 
 The requested object was not found in the configuration or state data on the server. Likely cause: the XPath expression
 is incorrect.
+
+### Debugging
+
+To debug the library, set the `debug` callback in the constructor options:
+
+```typescript
+const netconf = new Netconf({
+  ...
+  debug: (message: string, level: number) => {
+    console.log(`DEBUG[${level}]: ${message}`);
+  },
+});
+```
 
 
 ## License

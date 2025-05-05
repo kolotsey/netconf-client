@@ -1,33 +1,111 @@
 import { NetconfType } from '../lib/index.ts';
 
-export function resolveXPath(obj: NetconfType | undefined, xpathStr: string): NetconfType | undefined {
-  if(obj === undefined) return undefined;
-  const xpathItems = xpathStr.split('/');
-  if (xpathItems[0] === '') {
-    xpathItems.shift();
+/**
+ * Finds the first object in the object hierarchy that matches the key
+ * @param obj - The object to search
+ * @param key - The key to search for
+ *
+ * @returns The object, wrapping the first object that matches the key, if found only one such object,
+ *          or the number of objects found, if there are multiple or none.
+ */
+function findDeep(obj: NetconfType, key: string): { found: NetconfType, key?: string} | number {
+  if (typeof obj !== 'object' || obj === null) return 0;
+  if (Object.prototype.hasOwnProperty.call(obj, key)) {
+    return {found: { [key]: obj[key] }};
   }
-  return resolveXPathRecursive(obj, xpathItems);
+  let nFound=0;
+  let ret;
+  for (const k of Object.keys(obj)) {
+    if (Array.isArray(obj[k])){
+      ret = {found: {[k]: obj[k]}, key: k};
+      nFound++;
+      break;
+    }
+    const found = findDeep(obj[k] as NetconfType, key);
+    if (typeof found === 'object') {
+      nFound++;
+      ret = found;
+    }
+  }
+  if(nFound === 1) return ret ?? 0;
+  return nFound;
 }
 
 /**
- * The function will return the requested object by stripping the object returned from the Netconf of the root items,
- * matching the XPath. Therefore the actual object is returned without the root path.
- * Not applicable for XPath containing wildcard (* or //).
+ * Cleans the XPath string to make it easier to parse
+ * @param xpath - The XPath string to clean
+ * @returns The cleaned XPath string
+ */
+function cleanXPath(xpath: string): string {
+  // convert wildcard to *
+  xpath = xpath.replace(/\/\//g, '/*/');
+  // merge */* into *
+  xpath = xpath.replace(/\*\/\*/g, '*');
+  // remove leading /
+  xpath = xpath.replace(/^\/+/, '');
+
+  // remove any predicates/matching square brackets from the xpath
+  const regExp = /\[[^[\]]*]/;
+  while(regExp.test(xpath)){
+    xpath = xpath.replace(regExp, '');
+  }
+  return xpath;
+}
+/**
+ * The function will return the requested object by stripping the parent objects from the object returned from
+ * the Netconf,matching the XPath, leaving only the last object. Therefore the actual object is returned without
+ * the root path. For example, if XPath is //aaa//user[name="admin"]/homedir, the function will return the object
+ * that contains the homedir value:
+ * {
+ *   homedir: '/home/admin'
+ * }
  *
  * @param {object} obj - Config object returned by Netconf when queried with XPath filter
- * @param {string[]} xpathItems - Array of XPath tokens, for example if XPath is /aaa/authentication/users/user[name="admin"]/homedir,
- *     the array will be ['aaa', 'authentication', 'users', 'user', 'homedir']
+ * @param {string} xpath - XPath string
  * @returns The object stripped of the XPath tokens, that is if XPath is /aaa/authentication/users/user[name="admin"]/homedir,
  *     the function will return the object that contains the homedir value
  */
-function resolveXPathRecursive(obj: NetconfType, xpathItems: string[]): NetconfType {
-  // If there are no more XPath items, return the object
-  if (xpathItems.length === 0) return obj;
-  // Get the next level item from the XPath, remove any XPath expression in square brackets
-  const [levelItem, ...rest] = xpathItems;
-  const level = levelItem.match(/[^[]+/)?.[0];
-  // If the level does not exist (mistake), return the object
-  if (!level || !obj.hasOwnProperty(level)) return obj;
-  // otherwise call the function recursively with the next level
-  return resolveXPathRecursive(obj[level] as NetconfType, rest);
+// eslint-disable-next-line sonarjs/cognitive-complexity
+export function resolveXPath(obj: NetconfType | undefined, xpath: string): NetconfType | undefined {
+  if (obj === undefined) return undefined;
+  if (xpath.includes('|')) return obj;
+  xpath = cleanXPath(xpath);
+  if(!xpath) return obj;
+
+  const pathParts = xpath.split('/');
+  let current: NetconfType = obj;
+  let lastKey: string | null = null;
+  let lastResolved: NetconfType = obj;
+  let isDeep = false;
+
+  for (const part of pathParts) {
+    if (part === '*') {
+      isDeep = true;
+      continue;
+    }
+
+    if (isDeep) {
+      const found = findDeep(current, part);
+      if (typeof found === 'number') return lastKey ? { [lastKey]: lastResolved } : obj;
+      current = found.found[found.key ?? part] as NetconfType;
+      lastKey = found.key ?? part;
+      lastResolved = current;
+      isDeep = false;
+      continue;
+    }
+
+    if (
+      typeof current === 'object' &&
+      current !== null &&
+      Object.prototype.hasOwnProperty.call(current, part)
+    ) {
+      lastKey = part;
+      lastResolved = current[part] as NetconfType;
+      current = current[part] as NetconfType;
+    } else {
+      return lastKey ? { [lastKey]: lastResolved } : obj;
+    }
+  }
+
+  return lastKey ? { [lastKey]: lastResolved } : obj;
 }

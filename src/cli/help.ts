@@ -13,13 +13,15 @@ export function showHelp(): void {
     ${green(`${exe} [FLAGS] [CONN_STR] [XPATH]`)}
 
   Execute edit-config with ${bold('merge')} operation:
-    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] [var=val|array] [var=val|array] [...]`)}
+    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] [var=val] [var=val] [...]`)}
 
   Execute edit-config with ${bold('create')} operation:
-    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] add [var=val|array] [var=val|array] [...]`)}
+    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] add [var=val] [var=val] [...]`)}
+    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] add LIST_ITEMS`)}
 
   Execute edit-config with ${bold('delete')} operation:
     ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] del [var=val]`)}
+    ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] del LIST_ITEMS`)}
 
   Execute ${bold('rpc')} operation:
     ${green(`${exe} [FLAGS] [CONN_STR] [XPATH] rpc`)}
@@ -41,7 +43,7 @@ ${cyan('Flags:')}
   -p, --port            - Netconf port number (default: ${DEFAULT_PORT})
       --read-only       - only read the data from the server, no edit-config operations
       --schema-only     - print only the schema
-  -s, --show-namespaces - show namespaces in the result (enables -f)
+  -s, --show-namespaces - show namespaces in the result (enables --full-tree)
       --state-only      - print only the state
   -U, --user            - username (default: ${DEFAULT_USER})
   -v, --version         - version of the script
@@ -62,23 +64,34 @@ ${cyan('Flags:')}
                             if no operation is provided, get and merge are assumed
   var=val               - leaf name and value to be set on the selected object. Relevant for ${bold('create')} and ${bold('update')}
                             operations.
-  array                 - array of values to be added/deleted on the selected list.
+  LIST_ITEMS            - values to be added/deleted on the selected list, enclosed in square brackets,
+                            for example: "[value1, value2, value3]"
 
 ${cyan('Examples:')}
   Query the running configuration for the 'lan' interface
       ${green('${exe} netconf-host //interface[name="lan"]')}
 
-  Create a new user with username 'user' and password 'pass'. The edit-config operation requires the -n flag to specify
-  the AAA namespace.
+  Create a new user (${bold('operation: merge')}) with username 'user' and password 'pass'. The edit-config operation requires
+  the -n flag to specify the AAA namespace.
       ${green(`${exe} admin:admin@netconf-host:2022 -n http://tail-f.com/ns/aaa/1.1 /aaa/authentication/users/user \\
-      add name=user password=pass ssh_keydir='/var/confd/homes/user/.ssh' \\
+      name=user password=pass ssh_keydir='/var/confd/homes/user/.ssh' \\
       uid=100 gid=9000 homedir=/var/confd/homes/user`)}
 
-  Create a new NACM rule with name 'user' that allows read access to all interfaces. The new rule is inserted before
+  Create a new NACM rule (${bold('operation: add')}) with name 'user' that allows read access to all interfaces. The new rule is inserted before
   the 'oper' rule.
       ${green(`${exe} <HOST> -n urn:ietf:params:xml:ns:yang:ietf-netconf-acm \\
       '/nacm/rule-list[name="user"]/rule' add name=if module-name=interfaces \\
       path=/interfaces access-operations=read action=permit -b '[name="oper"]'`)}
+
+  Add a new user (${bold('operation: add')}) with username 'user' to the list of users in the 'oper' group using ${bold('list')} syntax.
+      ${green(`${exe} localhost -n urn:ietf:params:xml:ns:yang:ietf-netconf-acm '//groups/group[name="oper"]/user-name' add [user]`)}
+
+  Call a Netconf RPC to copy the running configuration to startup:
+      ${green(`${exe} localhost rpc '/copy-config' source.running= target.startup=`)}
+
+  Subscribe to notifications:
+      ${green(`${exe} localhost sub /`)}
+
 
 ${cyan('Environment Variables:')}
   NETCONF_HOST - Netconf host

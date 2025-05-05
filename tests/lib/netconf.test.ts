@@ -155,7 +155,7 @@ describe('editConfigMerge', () => {
     expect(fetchSchemaMock).toHaveBeenCalledWith('//wildcard/xpath');
   });
 
-  test('not write if readOnly is true', async () => {
+  test('throw if in read-only mode', async () => {
     const options: NetconfParams = {
       host: 'localhost',
       port: 830,
@@ -168,8 +168,9 @@ describe('editConfigMerge', () => {
     instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
 
-    await firstValueFrom(instance.editConfigMerge('/simple/xpath', { merged: true }));
-    expect(instance.rpcExec).not.toHaveBeenCalled();
+    await expect(
+      firstValueFrom(instance.editConfigMerge('/simple/xpath', { merged: true }))
+    ).rejects.toThrow('Operation not performed: in read-only mode');
   });
 
   test('throw if configObj is empty', async () => {
@@ -275,6 +276,41 @@ describe('editConfigCreate', () => {
     }));
   });
 
+  test('correctly create list items', async () => {
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const instance = new NetconfTest(options);
+
+    instance.fetchSchema = vi.fn().mockReturnValue(of({}));
+    const mockData = { result: { 'rpc-reply': { ok: null } }, xml: '<rpc-reply/>' };
+    instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
+
+    await firstValueFrom(instance.editConfigCreateListItems('/simple/xpath', ['item1', 'item2']));
+    expect(instance.rpcExec).toHaveBeenCalledWith(expect.objectContaining({
+      'edit-config': expect.objectContaining({
+        config: expect.objectContaining({
+          simple: {
+            xpath: [
+              {
+                $: {
+                  'nc:operation': 'create',
+                  'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+                },
+                _: 'item1',
+              },
+              {
+                $: {
+                  'nc:operation': 'create',
+                  'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+                },
+                _: 'item2',
+              },
+            ],
+          },
+        }),
+      }),
+    }));
+  });
+
   test('set beforeKey attributes if beforeKey is provided', async () => {
     const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
     const instance = new NetconfTest(options);
@@ -362,6 +398,41 @@ describe('editConfigDelete', () => {
       }),
     }));
   });
+
+  test('correctly delete list items', async () => {
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const instance = new NetconfTest(options);
+
+    instance.fetchSchema = vi.fn().mockReturnValue(of({}));
+    const mockData = { result: { 'rpc-reply': { ok: null } }, xml: '<rpc-reply/>' };
+    instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
+
+    await firstValueFrom(instance.editConfigDeleteListItems('/simple/xpath', ['item1', 'item2']));
+    expect(instance.rpcExec).toHaveBeenCalledWith(expect.objectContaining({
+      'edit-config': expect.objectContaining({
+        config: expect.objectContaining({
+          simple: {
+            xpath: [
+              {
+                $: {
+                  'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+                  'nc:operation': 'delete',
+                },
+                _: 'item1',
+              },
+              {
+                $: {
+                  'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+                  'nc:operation': 'delete',
+                },
+                _: 'item2',
+              },
+            ],
+          },
+        }),
+      }),
+    }));
+  });
 });
 
 describe('subscription', () => {
@@ -430,17 +501,16 @@ describe('rpc', () => {
     }));
   });
 
-  test('fail in read-only mode', async () => {
+  test('throw if in read-only mode', async () => {
     const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', readOnly: true };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': {} }, xml: '<rpc-reply/>' };
     instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
 
-    const result = await firstValueFrom(instance.rpc('/rpc', { merged: true }));
-    expect(result).toMatchObject(expect.objectContaining({
-      result: undefined,
-    }));
+    await expect(
+      firstValueFrom(instance.rpc('/rpc', { merged: true }))
+    ).rejects.toThrow('Operation not performed: in read-only mode');
   });
 
   test('throw if rpc request is empty', async () => {
