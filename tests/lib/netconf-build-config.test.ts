@@ -63,9 +63,13 @@ describe('build from xpath', () => {
     {
       text:   'build config from simple xpath',
       xpath:  '/interfaces/interface[name="eth1"]',
+      namespace: 'http://example.com/ns',
       expectedResult: [{name: 'eth1'}],
       expectedTarget: {
         interfaces: {
+          $: {
+            xmlns: 'http://example.com/ns',
+          },
           interface: {
             name: 'eth1',
           },
@@ -76,9 +80,13 @@ describe('build from xpath', () => {
     {
       text:   'build config from simple xpath with multiple predicates',
       xpath:  '/interfaces/interface[name="eth1"]/config-items/config-item[key="enabled"]',
+      namespace: 'http://example.com/ns',
       expectedResult: [{key: 'enabled'}],
       expectedTarget: {
         interfaces: {
+          $: {
+            xmlns: 'http://example.com/ns',
+          },
           interface: {
             name: 'eth1',
             'config-items': {
@@ -111,6 +119,7 @@ describe('build from xpath', () => {
     {
       text:   'handle xpath with special characters in names',
       xpath:  '/interfaces/interface[name="eth1.100"]',
+      namespace: 'http://example.com/ns',
       expectedResult: [{ name: 'eth1.100' }],
       expectedTarget: undefined,
     },
@@ -118,6 +127,7 @@ describe('build from xpath', () => {
     {
       text:   'handle xpath with single quotes',
       xpath:  '/interfaces/interface[name=\'eth1\']',
+      namespace: 'http://example.com/ns',
       expectedResult: [{ name: 'eth1' }],
       expectedTarget: undefined,
     },

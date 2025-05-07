@@ -18,6 +18,11 @@ export enum GetDataResultType {
   SCHEMA = 'schema',
 }
 
+export interface NamespaceType {
+  alias: string;
+  uri: string;
+}
+
 /**
  * Netconf client parameters
  */
@@ -43,7 +48,7 @@ export interface NetconfParams {
    * All namespaces, as well as other data that comes in attributes in the result xml,
    * will be removed from the result.
    */
-  stripNamespaces?: boolean;
+  ignoreAttrs?: boolean;
   /**
    * Read data from the server only, edit-config or other rpc exec operations will not be performed.
    */
@@ -54,9 +59,9 @@ export interface NetconfParams {
    */
   allowMultipleEdit?: boolean;
   /**
-   * Target namespace to add to the request.
+   * Target namespace to add to the request or list of namespaces with their aliases.
    */
-  namespace?: string;
+  namespace?: string | (string | NamespaceType)[];
   /**
    * A function that receives a string argument and a level to print debug info.
    * The level is a number that indicates the verbosity of the provided debug message, 3 being the most verbose.

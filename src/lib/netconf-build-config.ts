@@ -1,5 +1,6 @@
-import { map, Observable, of } from 'rxjs';
-import { NetconfType, SafeAny } from './netconf-types.ts';
+import { map, Observable, of, switchMap, tap } from 'rxjs';
+import { NamespaceType, NetconfType, SafeAny } from './netconf-types.ts';
+import { Output } from '../cli/output.ts';
 
 /**
  * Build a configuration object for Netconf edit-config RPC based on the XPath filter.
@@ -11,7 +12,15 @@ export class NetconfBuildConfig {
 
   private schema?: Observable<NetconfType>;
 
-  private targetNamespace?: string;
+  private namespace?: string | (string | NamespaceType)[];
+
+  private guessNamespace?: Observable<string | undefined>;
+
+  private get hasNamespace(): boolean {
+    return this.namespace !== undefined && (
+      typeof this.namespace === 'string' || (Array.isArray(this.namespace) && this.namespace.length > 0)
+    );
+  }
 
   /**
    * Create a new BuildEditConfig object.
@@ -20,9 +29,15 @@ export class NetconfBuildConfig {
    *   for example, //interfaces/interface[name="eth1"]
    * @param {Observable<NetconfType>} schema - Observable that emits the schema of the device.
    *   The class may use it if the XPath filter is not straightforward.
-   * @param {string} targetNamespace - Optional target namespace for the configuration object.
+   * @param {string | (string | NamespaceType)[]} namespace - Optional target namespace for the configuration object.
+   *   it can also be an array of namespaces with their aliases, see {@link NamespaceType}.
    */
-  public constructor(xpath: string, schema?: Observable<NetconfType>, targetNamespace?: string) {
+  public constructor(
+    xpath: string,
+    schema?: Observable<NetconfType>,
+    namespace?: string | (string | NamespaceType)[],
+    guessNamespace?: Observable<string | undefined>
+  ) {
     xpath = xpath.trim();
     if(!xpath || xpath === '/' || xpath === '//'){
       throw new Error('XPath for edit-config must contain at least one element');
@@ -32,7 +47,8 @@ export class NetconfBuildConfig {
     }
     this.xpath = xpath;
     this.schema = schema;
-    this.targetNamespace = targetNamespace;
+    this.namespace = namespace;
+    this.guessNamespace = guessNamespace;
   }
 
 
@@ -54,11 +70,18 @@ export class NetconfBuildConfig {
    */
   public build(targetObj: NetconfType): Observable<NetconfType[]> {
     if(!(this.xpath.includes('//') || this.xpath.includes('*'))){
-      // Try to build based on XPath
-      const result = this.buildFromXPath(targetObj);
-      if(result !== undefined){
-        return of(result);
-      }
+      // Try to build based on XPath first
+      return this.buildFromXPath(targetObj).pipe(
+        switchMap(result => {
+          if(result !== undefined){
+            return of(result);
+          }
+          if(this.schema === undefined){
+            return of([]);
+          }
+          return this.buildFromSchema(this.schema, targetObj);
+        }),
+      );
     }
     if(this.schema){
       return this.buildFromSchema(this.schema, targetObj);
@@ -77,30 +100,53 @@ export class NetconfBuildConfig {
    *
    * @returns {NetconfType[] | undefined} Array including the configuration object that needs to be updated.
    */
-  private buildFromXPath(targetObj: NetconfType): NetconfType[] | undefined {
+  private buildFromXPath(targetObj: NetconfType): Observable<NetconfType[] | undefined> {
+    const VALID_SEGMENT = /^([\w.:\-]+)(?:\[([^=@]+)=(["'])([^"'\]]+)\3])?$/;
     // Split the XPath filter into tokens
     const xpathSegments = this.xpath.split('/').filter(x => x !== '');
-    let current = targetObj;
-
-    for (let i = 0; i < xpathSegments.length; i++) {
-      const seg = xpathSegments[i];
-      const match = seg.match(/^([\w.:\-]+)(?:\[([^=@]+)=(["'])([^"'\]]+)\3])?$/);
-
-      if (!match) return undefined;
-
-      const [, tag, predKey, , predVal] = match;
-      current[tag] = i === 0 && this.targetNamespace
-        ? { $: { xmlns: this.targetNamespace } }
-        : {};
-
-      if (predKey && predVal) {
-        current[tag][predKey] = predVal;
+    // Check each segment is valid
+    for (const segment of xpathSegments) {
+      if (!VALID_SEGMENT.test(segment)) {
+        return of(undefined);
       }
-
-      current = current[tag];
     }
 
-    return [current];
+    // Observable for namespace, requesting server if needed
+    const namespace: Observable<Record<string, string> | undefined> = this.hasNamespace
+      ? of(this.getNamespaces())
+      : this.guessNamespace
+        ? of(null).pipe(
+          tap(() => Output.debug('Sending request to the server to guess the namespace')),
+          switchMap(() => this.guessNamespace ? this.guessNamespace : of(undefined)),
+          map(ns => ns ? { xmlns: ns } : undefined),
+        )
+        : of(undefined);
+
+    return namespace.pipe(
+      map(ns => {
+        let current = targetObj;
+
+        for (let i = 0; i < xpathSegments.length; i++) {
+          const segment = xpathSegments[i];
+          const match = segment.match(VALID_SEGMENT);
+
+          if (!match) return undefined;
+
+          const [, tag, predKey, , predVal] = match;
+          current[tag] = i === 0 && ns
+            ? { $: ns }
+            : {};
+
+          if (predKey && predVal) {
+            current[tag][predKey] = predVal;
+          }
+
+          current = current[tag];
+        }
+
+        return [current];
+      }),
+    );
   }
 
   /**
@@ -127,11 +173,15 @@ export class NetconfBuildConfig {
     }
     const xpathSegments = xpath.split('/');
 
+    Output.debug('Build configuration object based on leaf schema');
+    Output.debug('Sending request to the server to get the leaf schema');
     return schema.pipe(
       map((schemaObj: NetconfType) => {
         // Deep copy schema into targetObj
         Object.assign(targetObj, structuredClone(schemaObj));
         // match the schema with the xpath and return the config parts
+
+        if((targetObj.$ as NetconfType)?.xmlns) delete (targetObj.$ as NetconfType).xmlns;
         return this.findConfigPartsInSchema(targetObj, xpathSegments);
       }),
     );
@@ -178,14 +228,14 @@ export class NetconfBuildConfig {
           branchPassed = searchSchema(currentObj[key] as NetconfType, steps, step + 1) || branchPassed;
         }
 
-        if (!branchPassed && (Array.isArray(currentObj[key]) || typeof currentObj[key] === 'object')) {
+        if (!branchPassed && (Array.isArray(currentObj[key]) || typeof currentObj[key] === 'object') && key !== '$') {
           delete currentObj[key];
         }
       }
-      if(step === 1 && this.targetNamespace){
+      if(step === 1 && this.hasNamespace){
         currentObj.$ = {
           ...currentObj.$ ?? {} as SafeAny,
-          xmlns: this.targetNamespace,
+          ...this.getNamespaces(),
         };
       }
       return branchPassed;
@@ -199,10 +249,24 @@ export class NetconfBuildConfig {
   private stripNestedObjects = (obj: NetconfType): void => {
     if (typeof obj === 'object' && obj !== null) {
       Object.keys(obj).forEach(key => {
-        if (obj[key] && typeof obj[key] === 'object') {
+        if (obj[key] && typeof obj[key] === 'object' && key !== '$') {
           delete obj[key];
         }
       });
     }
   };
+
+  private getNamespaces(): Record<string, string> | undefined {
+    if(typeof this.namespace === 'string'){
+      return { xmlns: this.namespace };
+    }
+    return this.namespace?.reduce((acc, curr) => {
+      if(typeof curr === 'string'){
+        acc.xmlns = curr;
+      }else{
+        acc[`xmlns:${curr.alias}`] = curr.uri;
+      }
+      return acc;
+    }, {} as Record<string, string>);
+  }
 }

@@ -2,9 +2,9 @@
 
 import { firstValueFrom, NEVER, Observable, of, Subject, timer } from 'rxjs';
 import { defaultIfEmpty, filter, map, switchMap, takeUntil, tap } from 'rxjs/operators';
-import { Netconf, NetconfType, NotificationResult, RpcResult, SSH_TIMEOUT } from '../lib/index.ts';
-import { Output } from './output.ts';
+import { Netconf, NetconfType, NotificationResult, Result, RpcResult, SSH_TIMEOUT } from '../lib/index.ts';
 import { catchMultipleEditError, setEditConfigStatus, setRpcConfigStatus, writeData } from './output-operators.ts';
+import { Output } from './output.ts';
 import { CliOptions, OperationType, parseArgs } from './parse-args.ts';
 import { resolveXPath } from './resolve-xpath.ts';
 
@@ -35,10 +35,12 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
           // result = stripParents(data.result);
           result = resolveXPath(data.result, getOptions.xpath);
         }
+        const isRootResult = data.result === result;
         data.result = result;
-        return data;
+        return [data, isRootResult] as [Result, boolean];
       }),
       writeData(cliOptions.resultFormat),
+      // writeData(cliOptions.resultFormat),
       switchMap(() => client.close()),
     );
 
@@ -122,12 +124,10 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
 }
 
 async function main(): Promise<void> {
-  const cliOptions = parseArgs();
+  const cliOptions = await parseArgs();
   if (!cliOptions){
     return;
   }
-
-  Output.debug(`Connecting to ${cliOptions.user}:${cliOptions.pass}@${cliOptions.host}:${cliOptions.port}`);
 
   const showNamespaces = cliOptions.operation.type === OperationType.GET && cliOptions.operation.options.showNamespaces;
   const allowMultipleEdit = (
@@ -141,10 +141,10 @@ async function main(): Promise<void> {
     port: cliOptions.port,
     user: cliOptions.user,
     pass: cliOptions.pass,
-    stripNamespaces: !showNamespaces,
+    ignoreAttrs: !showNamespaces,
     readOnly: cliOptions.readOnly,
     allowMultipleEdit,
-    namespace: cliOptions.namespace,
+    namespace: cliOptions.namespaces,
     debug: (msg: string, level: number) => Output.debug(msg, undefined, level),
   });
 

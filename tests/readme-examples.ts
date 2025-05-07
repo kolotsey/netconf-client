@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-console */
-import { catchError, combineLatest, finalize, firstValueFrom, map, NEVER, Observable, of, Subject, switchMap, tap, timer } from 'rxjs';
+import { catchError, combineLatest, firstValueFrom, map, NEVER, Observable, of, Subject, switchMap, tap, timer } from 'rxjs';
 import { Netconf } from '../src/lib/netconf';
 
 /**
@@ -71,7 +71,9 @@ async function exampleEditConfigMergePromise(): Promise<void> {
     port: 2022,
     user: 'admin',
     pass: 'admin',
-    namespace: 'http://tail-f.com/ns/aaa/1.1', // Provide the AAA namespace
+    // Provide the AAA namespace. If not provided, the client will try to guess it by accessing the server and
+    // requesting shallow config for the first segment of the XPath that should include a namespace.
+    namespace: 'http://tail-f.com/ns/aaa/1.1',
   });
 
   try {
@@ -122,7 +124,7 @@ async function exampleCustomRpcPromise(): Promise<void> {
     // Provide the namespace of the netconf-monitoring module for the get-schema RPC
     namespace: 'urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring',
     // Strip namespaces from the result to only have the schema text
-    stripNamespaces: true,
+    ignoreAttrs: true,
   });
 
   try {
@@ -130,7 +132,7 @@ async function exampleCustomRpcPromise(): Promise<void> {
     const identifier = (data.result as any)['netconf-state'].schemas.schema.identifier;
     const schema = await firstValueFrom(netconf.rpc('/get-schema', { identifier }));
     await firstValueFrom(netconf.close());
-    console.log(schema.result?.data);
+    console.log((schema.result?.data as unknown as string)?.substring(0, 1000));
   } catch (error) {
     console.error('RPC error:', error);
   }
@@ -148,13 +150,13 @@ function exampleCustomRpcRxJS(): Observable<void> {
     user: 'admin',
     pass: 'admin',
     namespace: 'urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring',
-    stripNamespaces: true,
+    ignoreAttrs: true,
   });
 
   return netconf.getData('/netconf-state/schemas/schema[1]').pipe(
     map(data => (data.result as any)['netconf-state'].schemas.schema.identifier),
     switchMap(identifier => netconf.rpc('/get-schema', { identifier })),
-    map(data => data.result?.data),
+    map(data => (data.result?.data as unknown as string)?.substring(0, 1000)),
     tap(data => console.log(data)),
     switchMap(() => netconf.close()),
   );
@@ -201,6 +203,7 @@ function subscribeToEventsRxJS(): Observable<void> {
     user: 'admin',
     pass: 'admin',
   });
+  // A subject that, when emitted, will stop the subscription
   const stop$ = new Subject<void>();
 
   // Subscribe to notifications
@@ -209,25 +212,29 @@ function subscribeToEventsRxJS(): Observable<void> {
       if(notification?.result?.hasOwnProperty('ok')) {
         // This is a RPC Reply from ConfD with OK
         console.log('Subscription started');
+        // Return NEVER, to continue the subscription and wait for notifications
         return NEVER;
-      } else if (notification === undefined) {
+      } else if (notification !== undefined) {
+        // This is a notification from ConfD
+        console.log('Notification:', notification);
+        // Return NEVER, to continue the subscription and wait for more notifications
+        return NEVER;
+      } else { // notification === undefined
         // When undefined is received, the subscription is stopped
         console.log('Subscription stopped');
+        // Return of(void 0), to continue down the pipe and close the connection
         return of(void 0);
-      } else {
-        console.log('Notification:', notification);
-        return NEVER;
       }
     }),
-    catchError(error => {
-      console.error('Subscription failed:', error.message);
-      return of(void 0);
-    }),
-    finalize(() => {
+    catchError(_error => of(void 0)),
+    switchMap(() => {
       console.log('Closing connection');
-      netconf.close().subscribe();
+      return netconf.close();
     }),
-  ).subscribe();
+  ).subscribe({
+    next: () => {},
+    error: (err: Error) => console.error('Subscription failed:', err.message),
+  });
 
   // Stop the subscription after 1 seconds
   return timer(1000).pipe(

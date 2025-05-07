@@ -7,8 +7,8 @@ class NetconfTest extends Netconf {
     return super.fetchSchema(xpath);
   }
 
-  public rpcExec(request: NetconfType): Observable<RpcReply> {
-    return super.rpcExec(request);
+  public rpcExec(request: NetconfType, ignoreAttrs?: boolean): Observable<RpcReply> {
+    return super.rpcExec(request, ignoreAttrs);
   }
 
   public rpcStream(
@@ -72,34 +72,34 @@ describe('getData', () => {
   });
 
   test('call rpc with configFilter "schema"', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': { data: { schema: true } } }, xml: '<rpc-reply/>' };
     instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
 
     const data = await firstValueFrom(instance.getData('/foo/bar', GetDataResultType.SCHEMA));
-    expect(instance.rpcExec).toHaveBeenCalledWith({
+    expect(instance.rpcExec).toHaveBeenCalledWith(expect.objectContaining({
       'get-data': expect.objectContaining({
         'max-depth': 1,
       }),
-    });
+    }), false);
     expect(data.result).toEqual({ schema: true });
   });
 
   test('call rpc with configFilter "config"', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': { data: { config: true } } }, xml: '<rpc-reply/>' };
     instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
 
     const data = await firstValueFrom(instance.getData('/foo/bar', GetDataResultType.CONFIG));
-    expect(instance.rpcExec).toHaveBeenCalledWith({
+    expect(instance.rpcExec).toHaveBeenCalledWith(expect.objectContaining({
       'get-data': expect.objectContaining({
         'config-filter': true,
       }),
-    });
+    }), undefined);
     expect(data.result).toEqual({ config: true });
   });
 
@@ -116,7 +116,7 @@ describe('getData', () => {
 
 describe('editConfigMerge', () => {
   test('merge itemConfig into each configObj', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -131,6 +131,9 @@ describe('editConfigMerge', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: {
               merged: true,
             },
@@ -141,7 +144,7 @@ describe('editConfigMerge', () => {
   });
 
   test('call fetchSchema with the correct xpath', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const fetchSchemaMock = vi.fn().mockReturnValue(of({wildcard: {xpath: {}}}));
@@ -162,6 +165,7 @@ describe('editConfigMerge', () => {
       user: 'admin',
       pass: 'admin',
       readOnly: true,
+      namespace: 'http://example.com/ns',
     };
     const instance = new NetconfTest(options);
     const mockData = { result: { 'rpc-reply': { ok: null } }, xml: '<rpc-reply/>' };
@@ -213,7 +217,7 @@ describe('editConfigMerge', () => {
   });
 
   test('return result if rpc-reply.ok is present', async () => {
-    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': { ok: null } }, xml: '<rpc-reply/>' };
@@ -224,7 +228,7 @@ describe('editConfigMerge', () => {
   });
 
   test('throw error if rpc-reply.ok is missing', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': null }, xml: '<rpc-reply/>' };
@@ -236,7 +240,7 @@ describe('editConfigMerge', () => {
   });
 
   test('throw error if rpc-reply is missing', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': null }, xml: '<rpc-reply/>' };
@@ -250,7 +254,7 @@ describe('editConfigMerge', () => {
 
 describe('editConfigCreate', () => {
   test('correctly set the $ attributes for create', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -264,6 +268,9 @@ describe('editConfigCreate', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: expect.objectContaining({
               $: {
                 'nc:operation': 'create',
@@ -277,7 +284,7 @@ describe('editConfigCreate', () => {
   });
 
   test('correctly create list items', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -289,6 +296,9 @@ describe('editConfigCreate', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: [
               {
                 $: {
@@ -312,7 +322,7 @@ describe('editConfigCreate', () => {
   });
 
   test('set beforeKey attributes if beforeKey is provided', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -327,6 +337,9 @@ describe('editConfigCreate', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: expect.objectContaining({
               $: {
                 'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
@@ -374,7 +387,7 @@ describe('editConfigDelete', () => {
   });
 
   test('correctly set the $ attributes', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -387,6 +400,9 @@ describe('editConfigDelete', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: expect.objectContaining({
               $: {
                 'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
@@ -400,7 +416,7 @@ describe('editConfigDelete', () => {
   });
 
   test('correctly delete list items', async () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     instance.fetchSchema = vi.fn().mockReturnValue(of({}));
@@ -412,6 +428,9 @@ describe('editConfigDelete', () => {
       'edit-config': expect.objectContaining({
         config: expect.objectContaining({
           simple: {
+            $: {
+              xmlns: 'http://example.com/ns',
+            },
             xpath: [
               {
                 $: {
@@ -476,7 +495,7 @@ describe('subscription', () => {
   });
 
   test('throw if option is invalid', () => {
-    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin' };
+    const options = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     expect(() => instance.subscription({} as SubscriptionOption)).toThrow('Invalid option in subscription');
@@ -485,7 +504,7 @@ describe('subscription', () => {
 
 describe('rpc', () => {
   test('send rpc request', async () => {
-    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', readOnly: false };
+    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', readOnly: false, namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
     const mockData = { result: { 'rpc-reply': {} }, xml: '<rpc-reply/>' };
     instance.rpcExec = vi.fn().mockReturnValue(of(mockData));
@@ -502,7 +521,7 @@ describe('rpc', () => {
   });
 
   test('throw if in read-only mode', async () => {
-    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', readOnly: true };
+    const options: NetconfParams = { host: 'localhost', port: 830, user: 'admin', pass: 'admin', readOnly: true, namespace: 'http://example.com/ns' };
     const instance = new NetconfTest(options);
 
     const mockData = { result: { 'rpc-reply': {} }, xml: '<rpc-reply/>' };

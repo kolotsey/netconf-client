@@ -52,6 +52,12 @@ describe('writeData', () => {
     expect(stdoutWrite).not.toHaveBeenCalled();
   });
 
+  test('writes nothing if empty string for KEYVALUE with root prefix', async () => {
+    const data = { xml: '', result: '' as SafeAny };
+    await firstValueFrom(of([data, true] as [Result, boolean]).pipe(writeData(ResultFormat.KEYVALUE)));
+    expect(stdoutWrite).not.toHaveBeenCalled();
+  });
+
   test('writes empty string for YAML', async () => {
     const data = { xml: '', result: '' as SafeAny };
     await firstValueFrom(of(data).pipe(writeData(ResultFormat.YAML)));

@@ -1,7 +1,7 @@
 // import * as getoptsImport from 'getopts';
 import * as getoptsImport from 'getopts';
 import * as packageJson from '../../package.json' with { type: 'json' };
-import { GetDataResultType, NetconfType, SafeAny } from '../lib/index.ts';
+import { GetDataResultType, NamespaceType, NetconfType, SafeAny } from '../lib/index.ts';
 import { showHelp } from './help.ts';
 import { Output } from './output.ts';
 import { ConnArgs, parseConnStr } from './parse-conn-str.ts';
@@ -239,7 +239,7 @@ export interface CliOptions {
   /**
    * YANG namespace to add to the request
    */
-  namespace?: string;
+  namespaces?: (string | NamespaceType)[];
 
   /**
    * Print result in the specified format
@@ -260,24 +260,26 @@ export interface CliOptions {
  *   If parsing fails, the function will throw an error.
  */
 // eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity
-export function parseArgs(): CliOptions | undefined {
+export async function parseArgs(): Promise<CliOptions | undefined> {
   let args = process.argv.slice(2);
   const getopts = (getoptsImport as SafeAny).default as unknown as typeof import('getopts');
   const opt = getopts(args, {
     alias: {
-      b: 'before-key',
-      'config-only': 'config',
-      f: 'full-tree',
+      allowmultiple: ['allow-multiple'],
+      b: ['beforekey', 'before-key'],
+      config: ['configonly', 'config-only'],
+      f: ['fulltree', 'full-tree'],
       h: 'help',
       H: 'host',
       j: 'json',
-      k: 'keyvalue',
-      n: 'namespace',
+      k: ['keyvalue', 'key-value'],
       p: 'port',
       P: 'pass',
-      'schema-only': 'schema',
-      s: 'show-namespaces',
-      'state-only': 'state',
+      readonly: 'read-only',
+      schema: ['schemaonly', 'schema-only'],
+      s: ['shownamespaces', 'show-namespaces'],
+      state: ['stateonly', 'state-only'],
+      stdin: ['stdin'],
       U: 'user',
       v: 'version',
       V: 'verbose',
@@ -285,33 +287,37 @@ export function parseArgs(): CliOptions | undefined {
       y: 'yaml',
     },
     default: {
-      'allow-multiple': false,
-      'before-key': undefined,
-      'config-only': false,
-      'dry-run': false,
-      'full-tree': false,
+      allowmultiple: false,
+      beforekey: undefined,
+      configonly: false,
+      fulltree: false,
       host: undefined,
       json: false,
       keyvalue: false,
       namespace: undefined,
       pass: undefined,
       port: undefined,
-      'read-only': false,
-      'schema-only': false,
-      'state-only': false,
+      readonly: false,
+      schemaonly: false,
+      stateonly: false,
+      stdin: false,
       user: undefined,
-      'show-namespaces': false,
+      shownamespaces: false,
       xml: false,
       yaml: false,
       hello: false,
     },
     // eslint-disable-next-line id-denylist
     boolean: [
-      'allow-multiple', 'config-only', 'dry-run', 'full-tree', 'help', 'json', 'keyvalue', 'read-only', 'schema-only',
-      'show-namespaces', 'state-only', 'version', 'verbose', 'xml', 'yaml', 'hello',
+      'allowmultiple', 'configonly', 'fulltree', 'help', 'json', 'keyvalue', 'read-only', 'schemaonly',
+      'shownamespaces', 'stateonly', 'stdin', 'version', 'verbose', 'xml', 'yaml', 'hello',
     ],
     unknown: (optionName: string): boolean => {
-      throw new Error(`Unknown option: ${optionName}`);
+      if(optionName.startsWith('xmlns')) {
+        return true;
+      }else{
+        throw new Error(`Unknown option: ${optionName}`);
+      }
     },
   });
 
@@ -380,6 +386,20 @@ export function parseArgs(): CliOptions | undefined {
         stream = args.shift();
       }
     }
+  }
+
+  if(opt.stdin){
+    // read from stdin
+    const stdin = process.stdin;
+    stdin.setEncoding('utf8');
+    stdin.on('data', (data: string) => {
+      const lines = data.split('\n');
+      lines.forEach(line => {
+        if(line.includes('=')) pushKeyValuePair(keyValuePairs, line);
+      });
+    });
+    // await for stdin eof
+    await new Promise(resolve => stdin.on('end', resolve));
   }
 
   if(listItems.length && Object.keys(keyValuePairs).length){
@@ -491,13 +511,33 @@ export function parseArgs(): CliOptions | undefined {
     throw new Error('Cannot mix --json, --xml and --yaml');
   }
 
+  const namespaces: (string | NamespaceType)[] = [];
+  Object.keys(opt).forEach(key => {
+    if(key.startsWith('xmlns')){
+      if(key.includes(':')){
+        const idx = key.indexOf(':');
+        const alias = key.substring(idx + 1);
+        if(Array.isArray(opt[key])){
+          throw new Error(`Namespace provided twice (${key})`);
+        }
+        const uri = opt[key];
+        namespaces.push({ alias, uri });
+      }else{
+        if(Array.isArray(opt[key])){
+          throw new Error(`Namespace provided twice (${key})`);
+        }
+        namespaces.push(opt[key]);
+      }
+    }
+  });
+
   const cliOptions: CliOptions = {
     host: connArgs.host,
     port: connArgs.port ?? DEFAULT_PORT,
     user: connArgs.user ?? DEFAULT_USER,
     pass: connArgs.pass ?? DEFAULT_PASS,
     operation,
-    namespace: opt.namespace,
+    namespaces,
     readOnly: opt['read-only'],
     resultFormat:
       opt.json ? ResultFormat.JSON : opt.xml ? ResultFormat.XML : opt.yaml ? ResultFormat.YAML
@@ -511,28 +551,65 @@ function pushKeyValuePair(obj: NetconfType, argument: string): void {
   const idx = argument.indexOf('=');
   const key = argument.substring(0, idx).trim();
   const val = argument.substring(idx + 1);
-  setNestedValue(obj, key, val);
+  if(key.length) setNestedValue(obj, key, val);
 }
 
 /**
  * Set a nested value in an object using a dot notation
  *
  * @param obj - The object to set the value in
- * @param key - The key to set the value in, using a dot notation, for example, 'a.b.c' should result into object with
+ * @param key - The key to set the value in, use `/` for nested properties, for example, 'a/b/c' should result into object with
  *   nested properties a, a.b and a.b.c
  * @param value - The value to set
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity
 function setNestedValue(obj: NetconfType, key: string, value: string): void {
-  const keys = key.split('.');
-  let current = obj;
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (!current.hasOwnProperty(keys[i]) || typeof current[keys[i]] !== 'object' || current[keys[i]] === null) {
-      current[keys[i]] = {};
-    }
-    current = current[keys[i]] as NetconfType;
+  // double slash/wildcard is not allowed
+  if (key.includes('//') || key.includes('*')) {
+    throw new Error('Cannot use double slash or wildcard in key');
   }
-  current[keys[keys.length - 1]] = value;
+  // remove leading and trailing slashes
+  if (key.startsWith('/')) key = key.substring(1);
+  if (key.endsWith('/')) key = key.substring(0, key.length - 1);
+
+  const keys = key.split('/');
+
+  let current: SafeAny = obj;
+  for (let i = 0; i < keys.length; i++) {
+    const arrayMatch = keys[i].match(/^(.+)\[(\d+)]$/);
+    if (arrayMatch) {
+      const arrayKey = arrayMatch[1];
+      const arrayIndex = parseInt(arrayMatch[2], 10) - 1; // Convert to zero-based index
+
+      if (!current[arrayKey]) {
+        current[arrayKey] = [];
+      } else if (!Array.isArray(current[arrayKey])) {
+        throw new Error(`Expected ${arrayKey} to be an array`);
+      }
+
+      // Ensure the array has enough elements
+      while (current[arrayKey].length <= arrayIndex) {
+        current[arrayKey].push({});
+      }
+
+      if (i === keys.length - 1) {
+        current[arrayKey][arrayIndex] = value;
+      } else {
+        current = current[arrayKey][arrayIndex];
+      }
+    } else {
+      if (i === keys.length - 1) {
+        current[keys[i]] = value;
+      } else {
+        if (!current[keys[i]] || typeof current[keys[i]] !== 'object') {
+          current[keys[i]] = {};
+        }
+        current = current[keys[i]];
+      }
+    }
+  }
 }
+
 
 function addListItems(argument: string): string[] {
   if(!RegExp(/^\[.*]$/).test(argument)) {

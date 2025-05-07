@@ -26,27 +26,27 @@ afterEach(() => {
 });
 
 describe('info output', () => {
-  test('when --help is provided, print help and return undefined', () => {
+  test('when --help is provided, print help and return undefined', async () => {
     process.argv = ['node', 'netconf', '--help'];
-    expect(parseArgs()).toBe(undefined);
+    expect(await parseArgs()).toBe(undefined);
     expect(console.info).toHaveBeenCalledWith(expect.stringContaining('Commands:'));
   });
 
-  test('when --version is provided, print version and return undefined', () => {
+  test('when --version is provided, print version and return undefined', async () => {
     process.argv = ['node', 'netconf', '--version'];
-    expect(parseArgs()).toBe(undefined);
+    expect(await parseArgs()).toBe(undefined);
     expect(console.info).toHaveBeenCalledWith(expect.stringMatching(/^(?:\d+\.?)+$/));
   });
 });
 
 describe('parse connection arguments', () => {
-  test('parse environment variables', () => {
+  test('parse environment variables', async () => {
     vi.stubEnv('NETCONF_HOST', 'host');
     vi.stubEnv('NETCONF_PORT', '1234');
     vi.stubEnv('NETCONF_USER', 'user');
     vi.stubEnv('NETCONF_PASS', 'pass');
     process.argv = ['node', 'netconf'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       host: 'host',
       port: 1234,
       user: 'user',
@@ -54,9 +54,9 @@ describe('parse connection arguments', () => {
     }));
   });
 
-  test('parse connection string', () => {
+  test('parse connection string', async () => {
     process.argv = ['node', 'netconf', 'user:pass@host:1234'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       host: 'host',
       port: 1234,
       user: 'user',
@@ -64,9 +64,9 @@ describe('parse connection arguments', () => {
     }));
   });
 
-  test('parse command line arguments', () => {
+  test('parse command line arguments', async () => {
     process.argv = ['node', 'netconf', '-H', 'host', '-p', '1234', '-U', 'user', '-P', 'pass'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       host: 'host',
       port: 1234,
       user: 'user',
@@ -74,11 +74,11 @@ describe('parse connection arguments', () => {
     }));
   });
 
-  test('merge from env, conn-str, and args', () => {
+  test('merge from env, conn-str, and args', async () => {
     vi.stubEnv('NETCONF_USER', 'user1');
     vi.stubEnv('NETCONF_PASS', 'pass1');
     process.argv = ['node', 'netconf', '-p', '5678', 'host2'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       host: 'host2',
       port: 5678,
       user: 'user1',
@@ -86,14 +86,14 @@ describe('parse connection arguments', () => {
     }));
   });
 
-  test('error on invalid connection string', () => {
+  test('error on invalid connection string', async () => {
     process.argv = ['node', 'netconf', 'user:pass'];
-    expect(() => parseArgs()).toThrow('Invalid connection string');
+    await expect(parseArgs()).rejects.toThrow('Invalid connection string');
   });
 
-  test('error when host is not provided', () => {
+  test('error when host is not provided', async () => {
     process.argv = ['node', 'netconf'];
-    expect(() => parseArgs()).toThrow('Host is not provided. Use -H flag, NETCONF_HOST environment variable, or connection string.');
+    await expect(parseArgs()).rejects.toThrow('Host is not provided. Use -H flag, NETCONF_HOST environment variable, or connection string.');
   });
 });
 
@@ -123,9 +123,9 @@ describe('parse arguments', () => {
     [['rpc', 'var=val'], OperationType.RPC],
     [['sub'], OperationType.SUBSCRIBE],
     [['--hello', 'set', 'var=val'], OperationType.HELLO],
-  ])('parse operation type: "%s"', (option, expected) => {
+  ])('parse operation type: "%s"', async (option, expected) => {
     process.argv = ['node', 'netconf', 'localhost', ...option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         type: expected,
       }),
@@ -136,9 +136,9 @@ describe('parse arguments', () => {
     ['--config-only', GetDataResultType.CONFIG],
     ['--state-only', GetDataResultType.STATE],
     ['--schema-only', GetDataResultType.SCHEMA],
-  ])('parse config-only, state-only, schema-only', (option, expected) => {
+  ])('parse config-only, state-only, schema-only', async (option, expected) => {
     process.argv = ['node', 'netconf', 'localhost', option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         options: expect.objectContaining({
           configFilter: expected,
@@ -150,9 +150,9 @@ describe('parse arguments', () => {
   test.each([
     ['netconf', 'stream'],
     ['/', 'xpath'],
-  ])('parse stream and xpath', (option, expected) => {
+  ])('parse stream and xpath', async (option, expected) => {
     process.argv = ['node', 'netconf', 'localhost', 'sub', option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         options: expect.objectContaining({
           type: expected,
@@ -160,7 +160,7 @@ describe('parse arguments', () => {
       }),
     }));
     process.argv = ['node', 'netconf', 'localhost', option, 'sub'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         options: expect.objectContaining({
           type: expected,
@@ -175,16 +175,16 @@ describe('parse arguments', () => {
     [['--yaml'], ResultFormat.YAML],
     [['--keyvalue'], ResultFormat.KEYVALUE],
     [[], ResultFormat.TREE],
-  ])('parse result format for "%s"', (option, expected) => {
+  ])('parse result format for "%s"', async (option, expected) => {
     process.argv = ['node', 'netconf', 'localhost', ...option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       resultFormat: expected,
     }));
   });
 
-  test('parse operation and xpath', () => {
+  test('parse operation and xpath', async () => {
     process.argv = ['node', 'netconf', 'localhost', '/foo/bar'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: {
         type: 'get',
         options: expect.objectContaining({
@@ -197,9 +197,9 @@ describe('parse arguments', () => {
   test.each([
     ['key=value', {key: 'value'}, 'keyvalue'],
     ['[key=value]', ['key=value'], 'list'],
-  ])('correctly set operation values for "add" operation', (option, expected, expectedType) => {
+  ])('correctly set operation values for "add" operation', async (option, expected, expectedType) => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', 'add', option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         type: 'create',
         options: expect.objectContaining({
@@ -215,9 +215,9 @@ describe('parse arguments', () => {
   test.each([
     ['key=value', {key: 'value'}, 'keyvalue'],
     ['[key=value]', ['key=value'], 'list'],
-  ])('correctly set operation values for "del" operation', (option, expected, expectedType) => {
+  ])('correctly set operation values for "del" operation', async (option, expected, expectedType) => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', 'del', option];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         type: 'delete',
         options: expect.objectContaining({
@@ -230,17 +230,19 @@ describe('parse arguments', () => {
     }));
   });
 
-  test('nested values', () => {
-    process.argv = ['node', 'netconf', 'localhost', '/foo', 'add', 'key.subkey=value'];
-    expect(parseArgs()).toEqual(expect.objectContaining({
+  test.each([
+    [['key=value'], {key: 'value'}],
+    [['key1=value1', 'key2=value2'], {key1: 'value1', key2: 'value2'}],
+    [['root/key1=value1', 'root/key2=value2'], {root: {key1: 'value1', key2: 'value2'}}],
+    [['foo/bar[1]/baz=1', 'foo/bar[2]/baz=2', 'foo/biz=3'], {foo: {bar: [{baz: '1'}, {baz: '2'}], biz: '3'}}],
+    [['foo/bar[2]/baz=2', 'foo/bar[1]/baz=1', 'foo/biz=3'], {foo: {bar: [{baz: '1'}, {baz: '2'}], biz: '3'}}],
+  ])('nested values for "%s"', async (option, expected) => {
+    process.argv = ['node', 'netconf', 'localhost', '/foo', 'add', ...option];
+    expect(await parseArgs()).toEqual(expect.objectContaining({
       operation: expect.objectContaining({
         options: expect.objectContaining({
           editConfigValues: expect.objectContaining({
-            values: {
-              key: {
-                subkey: 'value',
-              },
-            },
+            values: expected,
           }),
         }),
       }),
@@ -252,38 +254,38 @@ describe('error handling', () => {
   test.each([
     '--invalid-option',
     '-z',
-  ])('error on invalid options: "%s"', option => {
+  ])('error on invalid options: "%s"', async option => {
     process.argv = ['node', 'netconf', 'localhost', option];
-    expect(() => parseArgs()).toThrow('Unknown option');
+    await expect(parseArgs()).rejects.toThrow('Unknown option');
   });
 
-  test('error on mixing array and key-value', () => {
+  test('error on mixing array and key-value', async () => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', 'a=1', '[b]'];
-    expect(() => parseArgs()).toThrow('Cannot mix list items and key-value pairs');
+    await expect(parseArgs()).rejects.toThrow('Cannot mix list items and key-value pairs');
   });
 
-  test('error on mixing config-only and state-only', () => {
+  test('error on mixing config-only and state-only', async () => {
     process.argv = ['node', 'netconf', 'localhost', '--config-only', '--state-only'];
-    expect(() => parseArgs()).toThrow('Cannot mix --config-only, --state-only and --schema-only');
+    await expect(parseArgs()).rejects.toThrow('Cannot mix --config-only, --state-only and --schema-only');
   });
 
-  test('error on mixing result format', () => {
+  test('error on mixing result format', async () => {
     process.argv = ['node', 'netconf', 'localhost', '--json', '--xml'];
-    expect(() => parseArgs()).toThrow('Cannot mix --json, --xml and --yaml');
+    await expect(parseArgs()).rejects.toThrow('Cannot mix --json, --xml and --yaml');
   });
 
-  test('error when providing list items multiple times', () => {
+  test('error when providing list items multiple times', async () => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', '[a]', '[b]'];
-    expect(() => parseArgs()).toThrow('List items can only be provided once');
+    await expect(parseArgs()).rejects.toThrow('List items can only be provided once');
   });
 
-  test('error when providing list items for non-list operations', () => {
+  test('error when providing list items for non-list operations', async () => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', '[a]'];
-    expect(() => parseArgs()).toThrow('List items can only be provided for create and delete operations');
+    await expect(parseArgs()).rejects.toThrow('List items can only be provided for create and delete operations');
   });
 
-  test('error when list format is invalid', () => {
+  test('error when list format is invalid', async () => {
     process.argv = ['node', 'netconf', 'localhost', '/foo', '[a'];
-    expect(() => parseArgs()).toThrow('Invalid list, List must be enclosed in square brackets');
+    await expect(parseArgs()).rejects.toThrow('Invalid list, List must be enclosed in square brackets');
   });
 });

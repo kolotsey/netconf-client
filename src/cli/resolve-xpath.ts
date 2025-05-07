@@ -8,20 +8,22 @@ import { NetconfType } from '../lib/index.ts';
  * @returns The object, wrapping the first object that matches the key, if found only one such object,
  *          or the number of objects found, if there are multiple or none.
  */
-function findDeep(obj: NetconfType, key: string): { found: NetconfType, key?: string} | number {
+function findDeep(obj: NetconfType, key: string, currentDepth: number = 1): {
+  found: NetconfType; key?: string; depth: number;
+} | number {
   if (typeof obj !== 'object' || obj === null) return 0;
   if (Object.prototype.hasOwnProperty.call(obj, key)) {
-    return {found: { [key]: obj[key] }};
+    return {found: { [key]: obj[key] }, depth: currentDepth};
   }
   let nFound=0;
   let ret;
   for (const k of Object.keys(obj)) {
     if (Array.isArray(obj[k])){
-      ret = {found: {[k]: obj[k]}, key: k};
+      ret = {found: {[k]: obj[k]}, key: k, depth: currentDepth + 1};
       nFound++;
       break;
     }
-    const found = findDeep(obj[k] as NetconfType, key);
+    const found = findDeep(obj[k] as NetconfType, key, currentDepth + 1);
     if (typeof found === 'object') {
       nFound++;
       ret = found;
@@ -77,6 +79,7 @@ export function resolveXPath(obj: NetconfType | undefined, xpath: string): Netco
   let lastKey: string | null = null;
   let lastResolved: NetconfType = obj;
   let isDeep = false;
+  let depth = 0;
 
   for (const part of pathParts) {
     if (part === '*') {
@@ -85,27 +88,32 @@ export function resolveXPath(obj: NetconfType | undefined, xpath: string): Netco
     }
 
     if (isDeep) {
-      const found = findDeep(current, part);
-      if (typeof found === 'number') return lastKey ? { [lastKey]: lastResolved } : obj;
+      const found = findDeep(current, part, depth + 1);
+      if (typeof found === 'number'){
+        return depth === 1 ? obj : lastKey ? { [lastKey]: lastResolved } : obj;
+      }
       current = found.found[found.key ?? part] as NetconfType;
       lastKey = found.key ?? part;
       lastResolved = current;
       isDeep = false;
+      depth = found.depth;
       continue;
     }
 
-    if (
-      typeof current === 'object' &&
-      current !== null &&
-      Object.prototype.hasOwnProperty.call(current, part)
-    ) {
+    if (typeof current === 'object' && current !== null && current.hasOwnProperty(part)) {
       lastKey = part;
       lastResolved = current[part] as NetconfType;
       current = current[part] as NetconfType;
     } else {
-      return lastKey ? { [lastKey]: lastResolved } : obj;
+      return depth === 1 ? obj : lastKey ? { [lastKey]: lastResolved } : obj;
     }
+    depth++;
   }
 
-  return lastKey ? { [lastKey]: lastResolved } : obj;
+  // Handle the case where the last part is a wildcard
+  if (pathParts[pathParts.length - 1] === '*' && lastKey && typeof lastResolved === 'object' && lastResolved !== null) {
+    return lastResolved;
+  }
+
+  return depth === 1 ? obj : lastKey ? { [lastKey]: lastResolved } : obj;
 }

@@ -30,7 +30,7 @@ test('returns the object itself if xpathItems is empty', () => {
 
 test('resolves a single-level path', () => {
   const obj = { a: { b: 2 } };
-  expect(resolveXPath(obj, '/a')).toEqual(obj);
+  expect(resolveXPath(obj, '/a')).toBe(obj);
 });
 
 test('resolves a multi-level path', () => {
@@ -50,7 +50,7 @@ test('ignores square brackets in xpathItems', () => {
 
 test('returns the object if the first level does not exist', () => {
   const obj = { x: 1 };
-  expect(resolveXPath(obj, '/y')).toEqual(obj);
+  expect(resolveXPath(obj, '/y')).toBe(obj);
 });
 
 test('correctly handles filter in xpathItems', () => {
@@ -70,7 +70,7 @@ test('correctly handles filter in xpathItems 3', () => {
 
 test('ignores Xpath or |', () => {
   const obj = { a: { b: { c: 3 } }, d: { e: 4 } };
-  expect(resolveXPath(obj, '/b/c|/d/e')).toEqual(obj);
+  expect(resolveXPath(obj, '/b/c|/d/e')).toBe(obj);
 });
 
 test('correctly handles wildcard *', () => {
@@ -125,7 +125,7 @@ test('returns the most close parent for arrays 6', () => {
     b1: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] },
     b2: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] },
   } } };
-  expect(resolveXPath(obj, '//d')).toEqual(obj);
+  expect(resolveXPath(obj, '//d')).toBe(obj);
 });
 
 test('returns the most close parent for arrays 7', () => {
@@ -133,12 +133,17 @@ test('returns the most close parent for arrays 7', () => {
     b1: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] },
     b2: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] },
   } } };
-  expect(resolveXPath(obj, '/a/*/d')).toEqual(obj);
+  expect(resolveXPath(obj, '/a/*/d')).toBe(obj);
 });
 
 test('returns the most close parent with last wildcard', () => {
   const obj = { a: { b: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] } } };
-  expect(resolveXPath(obj, '//c/*')).toEqual(obj.a.b);
+  expect(resolveXPath(obj, '//c/*')).toEqual(obj.a.b.c);
+});
+
+test('returns the most close parent with last wildcard 2', () => {
+  const obj = { a: { b: { c: [{d: {e: 1, f: 2}}, {d: {e: 2, f: 3}}, {d: {e: 3, f: 4}}] } } };
+  expect(resolveXPath(obj, '//d/*')).toEqual(obj.a.b.c);
 });
 
 test('returns the most close parent 8', () => {
@@ -174,12 +179,12 @@ test('returns the most close parent 8', () => {
       ],
     },
   };
-  expect(resolveXPath(obj, '//nacm//group')).toEqual(obj);
+  expect(resolveXPath(obj, '//nacm//group')).toBe(obj);
 });
 
 test('handles wildcards through nested arrays', () => {
   const obj = { a: [{ b: [{ c: 1 }, { c: 2 }] }, { b: [{ c: 3 }] }] };
-  expect(resolveXPath(obj, '/a/*/b/*/c')).toEqual(obj);
+  expect(resolveXPath(obj, '/a/*/b/*/c')).toBe(obj);
 });
 
 test('returns primitive value at leaf', () => {
@@ -194,12 +199,12 @@ test('handles primitive at intermediate node', () => {
 
 test('handles empty object', () => {
   const obj = {};
-  expect(resolveXPath(obj, '/a/b')).toEqual(obj);
+  expect(resolveXPath(obj, '/a/b')).toBe(obj);
 });
 
 test('handles empty array', () => {
   const obj = { a: [] };
-  expect(resolveXPath(obj, '/a/b')).toEqual({ a: [] });
+  expect(resolveXPath(obj, '/a/b')).toBe(obj);
 });
 
 test('handles null value in path', () => {
@@ -214,12 +219,12 @@ test('handles multiple wildcards in a row', () => {
 
 test('handles path with only wildcards', () => {
   const obj = { a: { b: { c: 1 } } };
-  expect(resolveXPath(obj, '/*/*/*')).toEqual(obj);
+  expect(resolveXPath(obj, '/*/*/*')).toBe(obj);
 });
 
 test('returns ambiguous result for multiple deep matches', () => {
   const obj = { a: { b: { x: 1 } }, c: { b: { x: 2 } } };
-  expect(resolveXPath(obj, '//b')).toEqual(obj); // or however ambiguity is handled
+  expect(resolveXPath(obj, '//b')).toBe(obj);
 });
 
 test('handles only root slash', () => {
@@ -230,4 +235,34 @@ test('handles only root slash', () => {
 test('returns closest parent for non-existent deep key', () => {
   const obj = { a: { b: { c: 1 } } };
   expect(resolveXPath(obj, '/a/b/x/y')).toEqual({ b: { c: 1 } });
+});
+
+test('returns the entire object when the last part is a wildcard', () => {
+  const obj = { a: { b: { c: 3 } } };
+  expect(resolveXPath(obj, '/a/b/*')).toEqual({ c: 3 });
+});
+
+test('returns the entire object when the last part is a wildcard with multiple levels', () => {
+  const obj = { a: { b: { c: { d: 4 } } } };
+  expect(resolveXPath(obj, '/a/*/c/*')).toEqual({ d: 4 });
+});
+
+test('returns the entire object when the last part is a wildcard and object is nested', () => {
+  const obj = { a: { b: { c: { d: { e: 5 } } } } };
+  expect(resolveXPath(obj, '//d/*')).toEqual({ e: 5 });
+});
+
+test('returns the entire object when the last part is a wildcard and object is an array', () => {
+  const obj = { a: { b: [{ c: 1 }, { c: 2 }] } };
+  expect(resolveXPath(obj, '/a/b/*')).toEqual([{ c: 1 }, { c: 2 }]);
+});
+
+test('returns the entire object when the last part is a wildcard and object is a primitive', () => {
+  const obj = { a: { b: 42 } };
+  expect(resolveXPath(obj, '//b/*')).toEqual(obj.a);
+});
+
+test('returns closest parent when the last part is a wildcard and xpath is wrong', () => {
+  const obj = { a: { b: { c: { d: 42 } } } };
+  expect(resolveXPath(obj, '//b/d/*')).toEqual(obj.a);
 });

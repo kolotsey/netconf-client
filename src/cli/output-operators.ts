@@ -7,9 +7,51 @@ import { Output } from './output.ts';
 import { ResultFormat } from './parse-args.ts';
 import { asTree } from 'object-as-tree';
 
-function isPrimitive(val: SafeAny): boolean {
-  return val === null || val === undefined || typeof val === 'string'
-  || typeof val === 'number' || typeof val === 'boolean';
+/**
+ * A helper class to manage EPIPE when writing to stdout
+ */
+class Writer{
+  public static write(data: string): void {
+    const writer = Writer.getInstance();
+
+    if(writer.error){
+      if(writer.error.hasOwnProperty('code') && (writer.error as SafeAny).code === 'EPIPE'){
+        // Ignore EPIPE errors
+      }else{
+        throw new Error(`Error writing to stdout: ${writer.error.message}`);
+      }
+    }else{
+      writer.writeStdout(data);
+    }
+  }
+
+  private static instance?: Writer;
+
+  private static getInstance(): Writer {
+    if (!Writer.instance) {
+      Writer.instance = new Writer();
+    }
+    return Writer.instance;
+  }
+
+  private error?: Error;
+
+  private constructor() {
+    process.stdout.on('error', (e: Error): void => {
+      const writer = Writer.getInstance();
+      writer.error = e;
+      if(e.hasOwnProperty('code') && (e as SafeAny).code === 'EPIPE'){
+        // Ignore EPIPE errors
+      }else{
+        // This error will not be caught by RxJS
+        throw new Error(`Error writing to stdout: ${e.message}`);
+      }
+    });
+  }
+
+  private writeStdout(data: string): void {
+    process.stdout.write(data);
+  }
 }
 
 function formatPrimitive(val: SafeAny): string {
@@ -22,35 +64,22 @@ function formatPrimitive(val: SafeAny): string {
   return String(val);
 }
 
-function formatArray(val: SafeAny): string {
-  return val.map((item: SafeAny) =>
-    typeof item === 'string'
-      ? `'${item.replace(/'/g, '\\\'')}'`
-      : String(item)
-  ).join(',');
-}
-
 function printKeyValue(prefix: string, obj: SafeAny): void {
   if(Array.isArray(obj)){
-    if(obj.every(isPrimitive)){
-      // Array of primitives
-      process.stdout.write(`${prefix}=${formatArray(obj)}\n`);
-    }else{
-      // Array of objects: recurse into each item
-      obj.forEach((item, index) => {
-        // In XPath index starts at 1
-        const indexedPrefix = `${prefix}[${index+1}]`;
-        printKeyValue(indexedPrefix, item);
-      });
-    }
+    // Array of objects: recurse into each item
+    obj.forEach((item, index) => {
+      // In XPath index starts at 1
+      const indexedPrefix = `${prefix}[${index+1}]`;
+      printKeyValue(indexedPrefix, item);
+    });
   }else if(obj && typeof obj === 'object'){
-    for(const key of Object.keys(obj).sort()){
-      const keyPrefix = prefix.length > 0 ? `${prefix}/${key}` : key;
+    for(const key of Object.keys(obj)){
+      const keyPrefix = prefix === '/' ? `/${key}` : prefix.length > 0 ? `${prefix}/${key}` : key;
       printKeyValue(keyPrefix, obj[key]);
     }
-  }else if(prefix.length > 0){
+  }else if(prefix.length > 0 && prefix !== '/'){
     // Primitive: print the value
-    process.stdout.write(`${prefix}=${formatPrimitive(obj)}\n`);
+    Writer.write(`${prefix}=${formatPrimitive(obj)}\n`);
   }
 }
 
@@ -60,39 +89,44 @@ function printKeyValue(prefix: string, obj: SafeAny): void {
  * @param data - The result to write
  * @param format - The format to write the result in
  */
-export function writeData(format: ResultFormat): MonoTypeOperatorFunction<Result> {
-  return tap(data => {
+export function writeData(format: ResultFormat): MonoTypeOperatorFunction<Result | [Result, boolean]> {
+  return tap(input => {
+    // If the input is an array, the first element is the result and the second is a boolean
+    // indicating if the result is the root result
+    const [data, isRootResult] = Array.isArray(input) && input.length === 2 && typeof input[1] === 'boolean'
+      ? input
+      : [input as Result, false];
     switch (format) {
     case ResultFormat.XML:
-      process.stdout.write(data.xml);
-      process.stdout.write('\n');
+      Writer.write(data.xml);
+      Writer.write('\n');
       break;
 
     case ResultFormat.JSON:
       if(data.result === undefined){
-        process.stdout.write(JSON.stringify(null));
+        Writer.write(JSON.stringify(null));
       }else{
-        process.stdout.write(JSON.stringify(data.result, null, 2));
+        Writer.write(JSON.stringify(data.result, null, 2));
       }
-      process.stdout.write('\n');
+      Writer.write('\n');
       break;
 
     case ResultFormat.YAML:
       if(data.result === undefined){
-        process.stdout.write(yamlStringify(null));
+        Writer.write(yamlStringify(null));
       }else{
-        process.stdout.write(yamlStringify(data.result));
+        Writer.write(yamlStringify(data.result));
       }
       break;
 
     case ResultFormat.KEYVALUE:
-      printKeyValue('', data.result);
+      printKeyValue(isRootResult ? '/' : '', data.result);
       break;
 
     case ResultFormat.TREE:
     default:
-      process.stdout.write(data.result as SafeAny === '' ? yellow('no result') : asTree(data.result));
-      process.stdout.write('\n');
+      Writer.write(data.result as SafeAny === '' ? yellow('no result') : asTree(data.result));
+      Writer.write('\n');
       break;
     }
   });

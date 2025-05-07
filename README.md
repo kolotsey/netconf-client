@@ -5,7 +5,8 @@
 A pure TypeScript library for interacting with Netconf/ConfD servers. This client provides powerful and easy-to-use
 API. Comes with an intuitive CLI tool for shell access and scripting.
 
-**Note:** This README covers the Netconf library. For CLI tool usage, see the [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
+**Note:** This README covers the Netconf library. For CLI tool usage,
+see the [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
 
 ---
 
@@ -29,7 +30,9 @@ API. Comes with an intuitive CLI tool for shell access and scripting.
 
 ## Description
 
-This project provides both a JavaScript/TypeScript Netconf client library and a user-friendly CLI for interacting with Netconf servers. It supports XPath expressions (including wildcards) for **both reading and modifying** values, making Netconf operations more straightforward and accessible.
+This project provides both a JavaScript/TypeScript Netconf client library and a user-friendly CLI for interacting
+with Netconf servers. It supports XPath expressions (including wildcards) for **both reading and modifying** values,
+making Netconf operations more straightforward and accessible.
 
 ## Features
 
@@ -38,8 +41,10 @@ This project provides both a JavaScript/TypeScript Netconf client library and a 
 - **XPath**: Read and modify values using XPath expressions, including wildcards.
 - **API**: Provides _get/get-data_, _edit-config_ (merge, create, delete), _custom RPCs_, and _subscriptions_.
 - **Response**: Returns both parsed JavaScript objects and original XML responses.
-- **CLI Tool**: For quick shell access and scripting. See [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
-- **Flexible Output**: CLI supports _JSON_, _XML_, _YAML_, _key-value_ (for easy scripting), and _tree_ (for easy viewing) output formats.
+- **CLI Tool**: For quick shell access and scripting.
+See [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
+- **Flexible Output**: CLI supports _JSON_, _XML_, _YAML_, _key-value_ (for easy scripting), and _tree_
+(for easy viewing) output formats.
 
 
 ## Quick Start
@@ -106,7 +111,8 @@ netconf.getData('/confd-state/version').pipe(
 
 ### Edit Config (Merge)
 
-**Note:** provide the AAA namespace which is required for edit-config operation on AAA module.
+**Note:** provide the AAA namespace which is required for edit-config operation on AAA module. If not provided,
+the library will attempt to determine the namespace by querying the server.
 
 Using promises:
 ```typescript
@@ -115,7 +121,8 @@ const netconf = new Netconf({
   port: 2022,
   user: 'admin',
   pass: 'admin',
-  namespace: 'http://tail-f.com/ns/aaa/1.1', // Provide the AAA namespace
+  // Provide the AAA namespace
+  namespace: 'http://tail-f.com/ns/aaa/1.1',
 });
 try {
   await firstValueFrom(netconf.editConfigMerge('//aaa//user[name="admin"]', { password: 'admin' }));
@@ -133,7 +140,8 @@ const netconf = new Netconf({
   port: 2022,
   user: 'admin',
   pass: 'admin',
-  namespace: 'http://tail-f.com/ns/aaa/1.1', // Provide the AAA namespace
+  // Provide the AAA namespace
+  namespace: 'http://tail-f.com/ns/aaa/1.1',
 });
 netconf.editConfigMerge('//aaa//user[name="admin"]', { password: 'admin' }).pipe(
   tap(result => console.log('Edit status:', result.result)),
@@ -160,7 +168,7 @@ const netconf = new Netconf({
   // Provide the namespace of the netconf-monitoring module for the get-schema RPC
   namespace: 'urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring',
   // Strip namespaces from the result to only have the schema text
-  stripNamespaces: true,
+  ignoreAttrs: true,
 });
 try {
   const data = await firstValueFrom(netconf.getData('/netconf-state/schemas/schema[1]'));
@@ -183,7 +191,7 @@ const netconf = new Netconf({
   // Provide the namespace of the netconf-monitoring module for the get-schema RPC
   namespace: 'urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring',
   // Strip namespaces from the result to only have the schema text
-  stripNamespaces: true,
+  ignoreAttrs: true,
 });
 netconf.getData('/netconf-state/schemas/schema[1]').pipe(
   map(data => (data.result as any)['netconf-state'].schemas.schema.identifier),
@@ -196,7 +204,7 @@ netconf.getData('/netconf-state/schemas/schema[1]').pipe(
 
 ### Concurrency
 
-Only in RxJS.
+Example of concurrent operations using RxJS.
 
 ```typescript
 combineLatest([
@@ -218,6 +226,7 @@ combineLatest([
 Example of event subscription using RxJS.
 
 ```typescript
+// A subject that, when emitted, will stop the subscription
 const stop$ = new Subject<void>();
 
 // Subscribe to notifications
@@ -226,25 +235,29 @@ netconf.subscription({xpath: '/'}, stop$).pipe(
     if(notification?.result?.hasOwnProperty('ok')) {
       // This is a RPC Reply from ConfD with OK
       console.log('Subscription started');
+      // Return NEVER, to continue the subscription and wait for notifications
       return NEVER;
-    } else if (notification === undefined) {
+    } else if (notification !== undefined) {
+      // This is a notification from ConfD
+      console.log('Notification:', notification);
+      // Return NEVER, to continue the subscription and wait for more notifications
+      return NEVER;
+    } else { // notification === undefined
       // When undefined is received, the subscription is stopped
       console.log('Subscription stopped');
+      // Return of(void 0), to continue down the pipe and close the connection
       return of(void 0);
-    } else {
-      console.log('Notification:', notification);
-      return NEVER;
     }
   }),
-  catchError(error => {
-    console.error('Subscription failed:', error.message);
-    return of(void 0);
-  }),
-  finalize(() => {
+  catchError(_error => of(void 0)),
+  switchMap(() => {
     console.log('Closing connection');
-    netconf.close().subscribe();
+    return netconf.close();
   }),
-).subscribe();
+).subscribe({
+  next: () => {},
+  error: (err: Error) => console.error('Subscription failed:', err.message),
+});
 
 // Stop the subscription after 10 seconds
 timer(10000).pipe(
@@ -253,7 +266,8 @@ timer(10000).pipe(
     stop$.complete();
   }),
   // Wait for the subscription to stop and connection to close
-  switchMap(() => timer(5)),
+  switchMap(() => timer(1000)),
+  map(() => void 0),
 ).subscribe();
 ```
 
@@ -263,9 +277,11 @@ See the Library and CLI tool source code for more advanced usage examples.
 
 - `Netconf(params: NetconfParams)`
 
-    Initializes a new Netconf instance. The `params` object specifies connection parameters (host, port, username, password) and an optional namespace that is added to the request.
+    Initializes a new Netconf instance. The `params` object specifies connection parameters (host, port, username,
+    password) and an optional namespace that is added to the request.
 
-    Note that the connection to the server is lazy-loaded and won't be established until you invoke a method on the instance.
+    Note that the connection to the server is lazy-loaded and won't be established until you invoke a method
+    on the instance.
 
 - `.close(): Observable<void>`
 
@@ -279,11 +295,12 @@ See the Library and CLI tool source code for more advanced usage examples.
 
     Send a get-data request to the server. The request uses the `xpath` expression provided.
 
-    The `configFilter` parameter specifies whether to request _configuration_ or _state_ data.
+    The `configFilter` specifies whether to request _configuration_ or _state_ data or both.
 
 - `.editConfigMerge(xpath: string, values: object): Observable<EditConfigResult>`
 
-    Send an edit-config (merge operation) request to the server. The `values` parameter is an object containing the key-value pairs to be merged into the configuration.
+    Send an edit-config (merge operation) request to the server. The `values` argument is an object containing
+    the key-value pairs to be merged into the configuration.
 
     These two operations are equivalent and will produce identical request to the server:
     ```typescript
@@ -295,16 +312,18 @@ See the Library and CLI tool source code for more advanced usage examples.
 
 - `.editConfigCreate(xpath: string, values: object, beforeKey?: string): Observable<EditConfigResult>`
 
-    Send an edit-config (create operation) request to the server. The `values` parameter is an object containing the key-value pairs to be created in the configuration.
+    Send an edit-config (create operation) request to the server. The `values` argument is an object containing
+    the key-value pairs to be created in the configuration.
 
-    The `beforeKey` parameter specifies where to insert the new element in the configuration (for ordered lists). Example:
+    The `beforeKey` specifies where to insert the new element in the configuration (for ordered lists). Example:
     ```typescript
     netconf.editConfigCreate('//list', {name: 'newEntry'}, '[name="existingEntry"]');
     ```
 
 - `.editConfigDelete(xpath: string, values: object): Observable<EditConfigResult>`
 
-    Send an edit-config (delete operation) request to the server. The `xpath` parameter is the XPath expression of the element to be deleted. The `values` parameter should provide the key of the element to be deleted. Example:
+    Send an edit-config (delete operation) request to the server. The `xpath` argument is the XPath expression
+    of the element to be deleted. The `values` argument should provide the key of the element to be deleted. Example:
 
     ```typescript
     const netconf = new Netconf({
@@ -325,10 +344,11 @@ See the Library and CLI tool source code for more advanced usage examples.
 
     Deletes a list item in the configuration.
 
-- `.subscription(xpathOrStream: SubscriptionOption, stop$?: Subject<void>): Observable<NotificationResult | RpcResult | undefined>`
+- `.subscription(xpathOrStream: SubscriptionOption, stop$?: Subject<void>):
+   Observable<NotificationResult | RpcResult | undefined>`
 
     Send a subscription request to the server and return an observable that emits notifications as they are received.
-    The `xpathOrStream` parameter can be an object containing the property `xpath` with the XPath expression to subscribe
+    The `xpathOrStream` can be an object containing the property `xpath` with the XPath expression to subscribe
     to, or an object containing the property `stream` with the stream name to subscribe to.
 
     The `stop$` observable is an optional subject that, when emitted, will stop the subscription.
@@ -338,13 +358,17 @@ See the Library and CLI tool source code for more advanced usage examples.
     - Notifications as they are received;
     - `undefined` when the subscription is stopped.
 
-- `.rpc(cmd: string, params: object): Observable<RpcResult>`
+- `.rpc(cmd: string, values: object): Observable<RpcResult>`
 
-    Send a custom RPC request to the server and return the result. The `cmd` parameter is the name of the RPC provided as an XPath expression (see example).
+    Send a custom RPC request to the server and return the result. The `cmd` parameter is the name of the RPC or action
+    provided as an XPath expression (see example).
 
-    The `params` object is an optional parameter that contains the parameters for the RPC. This object can have multiple levels of nesting. The special key `$` is used to specify attributes of the element.
+    The `values` object is an optional argument that contains the parameters for the RPC or action. This object
+    can have multiple levels of nesting. The special key `$` is used to specify attributes of the element
+    (for example, a namespace).
 
-    Example for RPC command `get` with an XPath filter. This results in a similar request as `netconf.getData('/confd-state/version')`:
+    Example for RPC command `get` with an XPath filter. This results in a similar request
+    as `netconf.getData('/confd-state/version')`:
     ```typescript
     netconf.rpc('/get', {
       filter: {

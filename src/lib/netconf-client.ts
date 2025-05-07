@@ -49,7 +49,11 @@ export class NetconfClient {
 
   private xmlBuilder: xml2js.Builder;
 
-  private xmlParser: xml2js.Parser;
+  private xmlParserIgnoreAttrs?: xml2js.Parser;
+
+  private xmlParser?: xml2js.Parser;
+
+  private defaultIgnoreAttrs?: boolean;
 
 
   /**
@@ -92,6 +96,7 @@ export class NetconfClient {
         return throwError(() => new Error('Trying to use connection that was already closed'));
       }
       if(this.netconfChannelSubject$.getValue().state === 'uninitialized'){
+        this.debug(`Opening connection to ${this.params.user}@${this.params.host}:${this.params.port}`, NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
         this.netconfChannelSubject$.next({ state: 'connecting' });
 
         this.debug('Opening SSH session', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
@@ -121,11 +126,9 @@ export class NetconfClient {
    */
   public constructor(params: NetconfParams) {
     this.params = params;
-    if(this.params.stripNamespaces){
-      this.xmlParserOptions.ignoreAttrs = true;
-    }
+    this.defaultIgnoreAttrs = this.params.ignoreAttrs;
     this.xmlBuilder = new xml2js.Builder(this.xmlBuilderOptions);
-    this.xmlParser = new xml2js.Parser(this.xmlParserOptions);
+    // this.xmlParser = new xml2js.Parser(this.xmlParserOptions);
   }
 
   /**
@@ -153,9 +156,6 @@ export class NetconfClient {
       catchError((error: Error) => {
         this.debug(`Error getting Netconf channel while closing connection: ${error.message}`, NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
         return of(null);
-      }),
-      tap((channelState: ClientChannelState | null) => {
-        this.debug(`Netconf channel state=${channelState?.state}`, NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
       }),
       // If channel opened, close it
       switchMap((channelState: ClientChannelState | null): Observable<void> => {
@@ -257,21 +257,15 @@ export class NetconfClient {
       this.netconfChannel$.pipe(
         takeUntil(this.helloDataSubject$.pipe(filter(Boolean))),
         switchMap(() => NEVER),
-        finalize(() => {
-          this.debug('finalize Hello Netconf channel', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
-        }),
       ),
       // Hello data stream
       this.helloDataSubject$.pipe(
         filter(Boolean),
-        finalize(() => {
-          this.debug('finalize Hello data subject', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
-        }),
       ),
     ).pipe(
       take(1),
       finalize(() => {
-        this.debug('finalize Hello data stream', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
+        this.debug('Finalize Hello data stream', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
       }),
     );
   }
@@ -284,8 +278,8 @@ export class NetconfClient {
    * @param {NetconfObjType} request - The netconf request object
    * @returns {Observable<NetconfData>} An observable that emits the response
    */
-  protected rpcExec(request: NetconfType): Observable<RpcReply> {
-    return this.sendRequest(request);
+  protected rpcExec(request: NetconfType, ignoreAttrs?: boolean): Observable<RpcReply> {
+    return this.sendRequest(request, undefined, ignoreAttrs);
   }
 
   /**
@@ -334,18 +328,19 @@ export class NetconfClient {
    *   - Single response in single-response mode
    *   - Stream of notifications in subscription mode
    */
-  private sendRequest(request: NetconfType, stop$?: Subject<void>): Observable<RpcReply> {
-    const messageId = this.idCounter += 1;
-    const object: SafeAny = {};
-
-    object.rpc = request;
-    if (!object.rpc.$) object.rpc.$ = {};
-    object.rpc.$['message-id'] = messageId;
-    object.rpc.$.xmlns = 'urn:ietf:params:xml:ns:netconf:base:1.0';
-
-    return of(this.xmlBuilder.buildObject(object)).pipe(
-      map(xml => `${xml}\n${NETCONF_DELIM}`),
-      switchMap(xml => this.sendXml(xml, messageId, stop$)),
+  private sendRequest(request: NetconfType, stop$?: Subject<void>, ignoreAttrs?: boolean): Observable<RpcReply> {
+    return of(null).pipe(
+      map(() => {
+        const messageId = this.idCounter += 1;
+        const object: SafeAny = {};
+        object.rpc = request;
+        if (!object.rpc.$) object.rpc.$ = {};
+        object.rpc.$['message-id'] = messageId;
+        object.rpc.$.xmlns = 'urn:ietf:params:xml:ns:netconf:base:1.0';
+        return [messageId, this.xmlBuilder.buildObject(object)] as [number, string];
+      }),
+      map(([messageId, xml]) => [messageId, `${xml}\n${NETCONF_DELIM}`] as [number, string]),
+      switchMap(([messageId, xml]) => this.sendXml(xml, messageId, stop$, ignoreAttrs)),
       // Timeout only for the first request. All subsequent requests (in case of awaitNotifications) are notifications
       // and can be received for a long time.
       timeout({
@@ -359,7 +354,7 @@ export class NetconfClient {
     );
   }
 
-  private sendXml(xml: string, messageId: number, stop$?: Subject<void>): Observable<RpcReply> {
+  private sendXml(xml: string, messageId: number, stop$?: Subject<void>, ignoreAttrs?: boolean): Observable<RpcReply> {
     if(!this.netconfChannelSubject$){
       return throwError(() => new Error('Requesting data on a closed connection'));
     }
@@ -392,7 +387,7 @@ export class NetconfClient {
 
           replyReceived = true;
 
-          this.parseXml(message).pipe(
+          this.parseXml(message, ignoreAttrs).pipe(
             catchError((err: Error) => {
               this.handleError(err);
               return EMPTY;
@@ -618,6 +613,7 @@ export class NetconfClient {
             this.debug(`HELLO received, Netconf session ID: ${hello.hello['session-id']}`, NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
             rcvBuffer.clear();
             if(this.netconfChannelSubject$?.getValue().state !== 'ready'){
+              this.debug('Connection ready', NETCONF_DEBUG_TAG, NETCONF_DEBUG_LEVEL);
               this.netconfChannelSubject$?.next({ state: 'ready', channel });
               this.helloDataSubject$.next({ xml: original, result: hello });
             }
@@ -650,8 +646,24 @@ export class NetconfClient {
    * @param  {string} xml - XML string to parse
    * @return {Observable<NetconfType>} Observable that emits the object parsed from the XML
    */
-  private parseXml(xml: string): Observable<{parsed: NetconfType, original: string}> {
-    return from(this.xmlParser.parseStringPromise(xml)).pipe(
+  private parseXml(xml: string, ignoreAttrs?: boolean): Observable<{parsed: NetconfType, original: string}> {
+    if(ignoreAttrs === undefined){
+      ignoreAttrs = this.defaultIgnoreAttrs;
+    }
+    let xmlParser;
+    if(ignoreAttrs){
+      if(!this.xmlParserIgnoreAttrs){
+        this.xmlParserIgnoreAttrs = new xml2js.Parser({...this.xmlParserOptions, ignoreAttrs: true});
+      }
+      xmlParser = this.xmlParserIgnoreAttrs;
+    }else{
+      if(!this.xmlParser){
+        this.xmlParser = new xml2js.Parser({...this.xmlParserOptions, ignoreAttrs: false});
+      }
+      xmlParser = this.xmlParser;
+    }
+
+    return from(xmlParser.parseStringPromise(xml)).pipe(
       map(reply => {
         // check if there is an error in the rpc reply
         if(reply.hasOwnProperty('rpc-reply')) {

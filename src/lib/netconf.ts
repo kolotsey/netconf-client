@@ -1,4 +1,4 @@
-import { endWith, map, MonoTypeOperatorFunction, Observable, Subject, switchMap, tap, throwError } from 'rxjs';
+import { catchError, endWith, map, MonoTypeOperatorFunction, Observable, of, Subject, switchMap, tap, throwError } from 'rxjs';
 import { NetconfBuildConfig } from './netconf-build-config.ts';
 import { NetconfClient } from './netconf-client.ts';
 import { CreateSubscriptionRequest, EditConfigResult, GetDataResult, GetDataResultType, MultipleEditError, NetconfParams, NetconfPrimitiveType, NetconfType, NotificationResult, RpcReply, RpcReplyType, RpcResult, SafeAny, SubscriptionOption } from './netconf-types.ts';
@@ -156,7 +156,7 @@ export class Netconf extends NetconfClient{
       break;
     }
 
-    return this.rpcExec(request).pipe(
+    return this.rpcExec(request, resultType === GetDataResultType.SCHEMA? false : undefined).pipe(
       map((data: RpcResult): GetDataResult => {
         const ret: GetDataResult = {
           xml: data.xml,
@@ -168,6 +168,9 @@ export class Netconf extends NetconfClient{
         }
         const rpcReply = data.result?.['rpc-reply'] as RpcReplyType;
         ret.result = rpcReply.data;
+        if(resultType === GetDataResultType.SCHEMA && ret.result?.hasOwnProperty('$')){
+          delete (ret.result as SafeAny).$;
+        }
         return ret;
       })
     );
@@ -186,7 +189,12 @@ export class Netconf extends NetconfClient{
     const schema = this.fetchSchema(xpath);
     const targetObj = {};
 
-    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
       this.checkMultipleEdit(),
       tap((configObj: NetconfType[]) => {
         configObj.forEach((o: NetconfType) => {
@@ -217,7 +225,12 @@ export class Netconf extends NetconfClient{
     const targetObj = {};
     const schema = this.fetchSchema(xpath);
 
-    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
       this.checkMultipleEdit(),
       tap((configObj: NetconfType[]) => {
         configObj.forEach((o: NetconfType) => {
@@ -252,7 +265,12 @@ export class Netconf extends NetconfClient{
     const targetObj = {};
     const schema = this.fetchSchema(xpath);
 
-    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
       this.checkMultipleEdit(),
       tap((configObj: NetconfType[]) => {
         configObj.forEach((o: NetconfType) => {
@@ -288,7 +306,12 @@ export class Netconf extends NetconfClient{
     const targetObj = {};
     const schema = this.fetchSchema(xpath);
 
-    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
       this.checkMultipleEdit(),
       tap((configObj: NetconfType[]) => {
         configObj.forEach((o: NetconfType) => {
@@ -315,7 +338,12 @@ export class Netconf extends NetconfClient{
     const targetObj = {};
     const schema = this.fetchSchema(xpath);
 
-    return new NetconfBuildConfig(xpath, schema, this.params.namespace).build(targetObj).pipe(
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
       this.checkMultipleEdit(),
       tap((configObj: NetconfType[]) => {
         configObj.forEach((o: NetconfType) => {
@@ -404,6 +432,27 @@ export class Netconf extends NetconfClient{
         }
         return data.result;
       }),
+    );
+  }
+
+  protected guessNamespace(xpath: string): Observable<string | undefined> {
+    // get first XPath segment
+    const firstSegment = xpath.trim().replace('^//', '/').split('/').find(x => x !== '');
+    if(firstSegment === undefined){
+      return of(undefined);
+    }
+    return this.getData(`/${firstSegment}`, GetDataResultType.SCHEMA).pipe(
+      map((data: GetDataResult) => {
+        const result = data.result as SafeAny;
+        if(Object.keys(result).length === 1 && result[Object.keys(result)[0]]?.hasOwnProperty('$')){
+          const $ = result[Object.keys(result)[0]]?.$;
+          if($.hasOwnProperty('xmlns')){
+            return $.xmlns;
+          }
+        }
+        return undefined;
+      }),
+      catchError(() => of(undefined)),
     );
   }
 
