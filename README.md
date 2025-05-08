@@ -8,8 +8,6 @@ API. Comes with an intuitive CLI tool for shell access and scripting.
 **Note:** This README covers the Netconf library. For CLI tool usage,
 see the [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
 
----
-
 ## Table of Contents
 
 - [Description](#description)
@@ -39,13 +37,12 @@ making Netconf operations more straightforward and accessible.
 - **TypeScript**: Written entirely in TypeScript.
 - **RxJS**: Easy concurrency and error handling.
 - **XPath**: Read and modify values using XPath expressions, including wildcards.
-- **API**: Provides _get/get-data_, _edit-config_ (merge, create, delete), _custom RPCs_, and _subscriptions_.
-- **Response**: Returns both parsed JavaScript objects and original XML responses.
+- **API**: Provides _get/get-data_, _edit-config_ (merge, create, delete, replace), _custom RPCs_, and _subscriptions_.
+- **Server Response**: Library returns both parsed JavaScript objects and original XML responses.
 - **CLI Tool**: For quick shell access and scripting.
 See [Netconf Console App](https://github.com/kolotsey/netconf-client/blob/main/CLI.md).
 - **Flexible Output**: CLI supports _JSON_, _XML_, _YAML_, _key-value_ (for easy scripting), and _tree_
 (for easy viewing) output formats.
-
 
 ## Quick Start
 
@@ -62,7 +59,7 @@ import { Netconf } from 'netconf-client';
 import { firstValueFrom } from 'rxjs';
 
 const netconf = new Netconf({ host: 'localhost', port: 2022, user: 'admin', pass: 'admin' });
-const data = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
+const { result } = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
 ```
 
 ## Installation
@@ -76,6 +73,8 @@ npm install netconf-client
 ## Usage Examples
 
 The library can be used with both RxJS and Promises, so you can choose whichever style fits your project.
+All examples from the README are also available in the [tests/readme-examples.ts](tests/readme-examples.ts) file.
+It can be run with `npx tsx tests/readme-examples.ts` (provided npx is installed).
 
 ### Import the Library
 
@@ -315,7 +314,7 @@ See the Library and CLI tool source code for more advanced usage examples.
     Send an edit-config (create operation) request to the server. The `values` argument is an object containing
     the key-value pairs to be created in the configuration.
 
-    The `beforeKey` specifies where to insert the new element in the configuration (for ordered lists). Example:
+    The `beforeKey` specifies where to insert the new container in the configuration (for ordered lists). Example:
     ```typescript
     netconf.editConfigCreate('//list', {name: 'newEntry'}, '[name="existingEntry"]');
     ```
@@ -323,7 +322,8 @@ See the Library and CLI tool source code for more advanced usage examples.
 - `.editConfigDelete(xpath: string, values: object): Observable<EditConfigResult>`
 
     Send an edit-config (delete operation) request to the server. The `xpath` argument is the XPath expression
-    of the element to be deleted. The `values` argument should provide the key of the element to be deleted. Example:
+    of the container to be deleted. The `values` argument should provide the key of the container to be deleted.
+    Example:
 
     ```typescript
     const netconf = new Netconf({
@@ -335,6 +335,9 @@ See the Library and CLI tool source code for more advanced usage examples.
     });
     netconf.editConfigDelete('//aaa//user', {name: 'public'}); 
     ```
+- `.editConfigReplace(xpath: string, values: object): Observable<EditConfigResult>`
+
+    Send an edit-config (replace operation) request to the server.
 
 - `.editConfigCreateListItems(xpath: string, listItems: string[]): Observable<EditConfigResult>`
 
@@ -389,8 +392,8 @@ that the request misses a namespace. Provide the namespace using the `namespace`
 
 ### Result of getData() is empty string
 
-The requested object was not found in the configuration or state data on the server. Likely cause: the XPath expression
-is incorrect.
+The requested container was not found in the configuration or state data on the server. Likely cause: the XPath
+expression is incorrect.
 
 ### Debugging
 

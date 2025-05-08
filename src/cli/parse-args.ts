@@ -16,6 +16,7 @@ const OPERATION_ALIASES = {
   cre: 'create',
   rem: 'delete',
   del: 'delete',
+  rep: 'replace',
   sub: 'subscribe',
   rpc: 'rpc',
   exec: 'rpc',
@@ -42,6 +43,10 @@ export enum OperationType {
    * edit-config, nc:operation="delete"
    */
   DELETE = 'delete',
+  /**
+   * edit-config, nc:operation="replace"
+   */
+  REPLACE = 'replace',
   /**
    * subscribe to notifications
    */
@@ -156,6 +161,25 @@ type DeleteOptions = {
 };
 
 /**
+ * Options for edit-config with operation="replace".
+ */
+type ReplaceOptions = {
+  /**
+   * XPath filter to use for the operation.
+   */
+  xpath: string;
+  /**
+   * Key-value pairs to be deleted from the set
+   * or array of values to be deleted from the list
+   */
+  editConfigValues: EditConfigValues;
+  /**
+   * Allow multiple schema branches to be edited in a single operation
+   */
+  allowMultiple?: boolean;
+};
+
+/**
  * Options for subscription to notifications.
  */
 type SubscribeOptions = {
@@ -193,6 +217,7 @@ type Operation =
   | { type: OperationType.MERGE, options: MergeOptions }
   | { type: OperationType.CREATE, options: CreateOptions }
   | { type: OperationType.DELETE, options: DeleteOptions }
+  | { type: OperationType.REPLACE, options: ReplaceOptions }
   | { type: OperationType.SUBSCRIBE, options: SubscribeOptions }
   | { type: OperationType.RPC, options: RpcOptions };
 
@@ -472,6 +497,22 @@ export async function parseArgs(): Promise<CliOptions | undefined> {
     }),
     [OperationType.DELETE]: (x?: string) => ({
       type: OperationType.DELETE,
+      options: {
+        xpath: x ?? DEFAULT_XPATH,
+        editConfigValues: Object.keys(keyValuePairs).length
+          ? {
+            type: 'keyvalue',
+            values: keyValuePairs,
+          }
+          : {
+            type: 'list',
+            values: listItems,
+          },
+        allowMultiple: opt['allow-multiple'],
+      },
+    }),
+    [OperationType.REPLACE]: (x?: string) => ({
+      type: OperationType.REPLACE,
       options: {
         xpath: x ?? DEFAULT_XPATH,
         editConfigValues: Object.keys(keyValuePairs).length

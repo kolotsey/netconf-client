@@ -5,6 +5,8 @@ A command-line application for interacting with Netconf/ConfD servers.
 
 This intuitive CLI lets you easily read and edit server configurations using XPath expressions.
 
+## Table of Contents
+
 - [Features](#features)
 - [Installation](#installation)
 - [Usage Examples](#usage-examples)
@@ -19,6 +21,8 @@ This intuitive CLI lets you easily read and edit server configurations using XPa
 - [Flags and Options](#flags-and-options)
 - [Environment Variables](#environment-variables)
 - [License](#license)
+
+---
 
 ## Features
 
@@ -93,7 +97,7 @@ multiple times: `--xmlns=http://example.com/ns1` `--xmlns:ns2=http://example.com
 
 ### Edit config (merge)
 
-Change the admin password:
+Example of a merge operation (change the admin password):
 ```sh
 netconf localhost --xmlns=http://tail-f.com/ns/aaa/1.1 /aaa/authentication/users/user \
     name=admin password=admin
@@ -104,7 +108,7 @@ will attempt to determine the namespace by querying the server.
 
 ### Edit config (create)
 
-Create a new user:
+Example of a create operation (create a new user):
 
 ```sh
 netconf localhost /aaa/authentication/users/user \
@@ -114,15 +118,15 @@ netconf localhost /aaa/authentication/users/user \
 
 ### Edit config (create list items)
 
-Add a new user with username 'user' to the list of users in the 'oper' group using list syntax. List items are provided
-in square brackets, separated by commas.
+Example of a create operation when adding  items to a list/array (add a new user with username 'user' to the list
+of users in the 'oper' group using list syntax. List items are provided in square brackets, separated by commas.)
 ```sh
 netconf localhost '/nacm/groups/group[name="oper"]/user-name' add [user] 
 ```
 
 ### Edit config (delete)
 
-Delete a user:
+Example of a delete operation (delete a user):
 ```sh
 netconf localhost /aaa/authentication/users/user del name=user
 ```

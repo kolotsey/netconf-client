@@ -19,10 +19,10 @@ async function exampleQuickStart(): Promise<void> {
   // Create a new Netconf instance
   const netconf = new Netconf({host: HOST, port: 2022, user: 'admin', pass: 'admin'});
   // Get the data from the server
-  const data = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
+  const { result } = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
   // Close the connection
   await firstValueFrom(netconf.close());
-  console.log((data.result as any)?.aaa?.authentication.users.user);
+  console.log((result as any)?.aaa?.authentication.users.user);
 }
 
 

@@ -30,48 +30,48 @@ export function showHelp(): void {
     ${green(`${exe} [FLAGS] [CONN_STR] [XPATH|STREAM] sub`)}
   
 ${cyan('Flags:')}
-      --allow-multiple  - allow multiple schema branches to be edited in a single operation
-  -b, --before-key      - print the new key before the specified key (for ${bold('add')} operation). See examples below.
-      --config-only     - print only the configuration
-  -f, --full-tree       - print the full tree of the result (only requested object printed by default for get operation)
-      --hello           - print hello message and exit
-  -h, --help            - this help
-  -H, --host            - Netconf host
-  -j, --json            - print result in JSON format
-  -P, --password        - password (default: ${DEFAULT_PASS})
-  -p, --port            - Netconf port number (default: ${DEFAULT_PORT})
-      --read-only       - only read the data from the server, no edit-config operations
-      --schema-only     - print only the schema
-  -s, --show-namespaces - show namespaces in the result (enables --full-tree)
-      --state-only      - print only the state
-      --stdin           - read key-value pairs for edit-config operations from stdin instead of list of arguments;
-                            the key-value pairs are expected to be in the format of key=value, one per line;
-                            provide nested properties separated by /, for example: leaf/subleaf=value
-  -U, --user            - username (default: ${DEFAULT_USER})
-  -v, --version         - version of the script
-  -V, --verbose         - verbose output, use multiple times for more verbosity
-                          -V prints progress of the operation
-                          -VV prints Netconf message exchange between client and server (except Hello messages)
-                          -VVV prints the SSH debug messages (and Hello messages)
-  -x, --xml             - print result in XML format
-      --xmlns           - add namespace to the request. Can be specified multiple times with namespace alias separated
-                            by colon, for example: --xmlns=http://example.com/ns1 --xmlns:x=http://example.com/ns2
-                            If not provided, the client will try to guess it by requesting the shallow config for the
-                            first segment of the XPath which should include a namespace.
-  -y, --yaml            - print result in YAML format
-  CONN_STR              - remote host connection string in the form of user:pass@host:port
-  XPATH                 - XPath filter, must start with / (default: ${DEFAULT_XPATH})
-  add|del|upd|sub|rpc   - operation to be performed (default: get)
-                            add: ${bold('create')} a new object, key is required
-                            del: ${bold('delete')} an object, key is required
-                            upd: ${bold('update')} an existing object, key is required (default)
-                            sub: ${bold('subscribe')} to notifications
-                            rpc: execute a Netconf ${bold('RPC')}; provide RPC command as XPath ${bold('without wildcards')}
-                            If no operation is provided, get and update (merge) are assumed
-  var=val               - leaf name and value to be set on the selected object. Relevant for ${bold('create')} and ${bold('update')}
-                            operations.
-  LIST_ITEMS            - values to be added/deleted on the selected list, enclosed in square brackets,
-                            for example: "[value1, value2, value3]"
+      --allow-multiple    - allow multiple schema branches to be edited in a single operation
+  -b, --before-key        - print the new key before the specified key (for ${bold('add')} operation). See examples below.
+      --config-only       - print only the configuration
+  -f, --full-tree         - display the complete result tree (only the requested object is shown by default)
+      --hello             - print hello message and exit
+  -h, --help              - this help
+  -H, --host              - Netconf host
+  -j, --json              - print result in JSON format
+  -P, --password          - password (default: ${DEFAULT_PASS})
+  -p, --port              - Netconf port number (default: ${DEFAULT_PORT})
+      --read-only         - only read the data from the server, no edit-config operations
+      --schema-only       - print only the schema
+  -s, --show-namespaces   - show namespaces in the result (enables --full-tree)
+      --state-only        - print only the state
+      --stdin             - read key-value pairs for edit-config operations from stdin instead of list of arguments;
+                              the key-value pairs are expected to be in the format of key=value, one per line;
+                              provide nested properties separated by /, for example: leaf/subleaf=value
+  -U, --user              - username (default: ${DEFAULT_USER})
+  -v, --version           - version of the script
+  -V, --verbose           - verbose output, use multiple times for more verbosity
+                            -V prints progress of the operation
+                            -VV prints Netconf message exchange between client and server (except Hello messages)
+                            -VVV prints the SSH debug messages (and Hello messages)
+  -x, --xml               - print result in XML format
+      --xmlns             - add namespace to the request. Can be specified multiple times with namespace alias separated
+                              by colon, for example: --xmlns=http://example.com/ns1 --xmlns:x=http://example.com/ns2
+                              If not provided, the client will try to guess it by querying the server.
+  -y, --yaml              - print result in YAML format
+  CONN_STR                - remote host connection string in the form of user:pass@host:port
+  XPATH                   - XPath filter, must start with / (default: ${DEFAULT_XPATH})
+  upd|add|del|rep|sub|rpc - operation to be performed (default: get)
+                              upd: edit-config with ${bold('merge')} operation, key is required (default)                          
+                              add: edit-config with ${bold('create')} operation, key is required
+                              del: edit-config with ${bold('delete')} operation, key is required
+                              rep: edit-config with ${bold('replace')} operation, key is required
+                              sub: ${bold('subscribe')} to notifications
+                              rpc: execute a Netconf ${bold('RPC')}; provide RPC command as XPath ${bold('without wildcards')}
+                              N.B.: If no operation is provided, ${bold('get')} and ${bold('merge')} are assumed
+  var=val                 - leaf name and value to be set on the selected object. Relevant for edit-config and RPC
+                              operations.
+  LIST_ITEMS              - values to be added/deleted on the selected list (array), enclosed in square brackets,
+                              for example: "[value1, value2, value3]"
 
 ${cyan('Examples:')}
   Query the running configuration for the user list

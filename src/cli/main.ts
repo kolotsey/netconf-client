@@ -89,6 +89,20 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
     );
   }
 
+  case OperationType.REPLACE: {
+    const replaceOptions = cliOptions.operation.options;
+    const operation = replaceOptions.editConfigValues?.type === 'keyvalue'
+      ? client.editConfigReplace(replaceOptions.xpath, replaceOptions.editConfigValues.values)
+      : client.editConfigReplaceListItems(replaceOptions.xpath, replaceOptions.editConfigValues.values);
+
+    return operation.pipe(
+      catchMultipleEditError(),
+      setEditConfigStatus(),
+      writeData(cliOptions.resultFormat),
+      switchMap(() => client.connectionState === 'uninitialized' ? of(void 0) : client.close()),
+    );
+  }
+
   case OperationType.SUBSCRIBE:
     const subscribeOptions = cliOptions.operation.options;
     const stop$ = new Subject<void>();

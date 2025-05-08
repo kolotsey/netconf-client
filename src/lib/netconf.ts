@@ -83,7 +83,7 @@ export class Netconf extends NetconfClient{
    * @param {GetDataResultType} resultType Result type (config filter)
    *   - If 'config', only the configuration is returned
    *   - If 'state', only the state data is returned
-   *   - If 'schema', only the schema data for the XPath is returned (object with keys only)
+   *   - If 'schema', only the shallow subtree for the XPath is returned (object with keys only), no descendants
    *   - If undefined, both config and state data are returned
    * @returns {Observable<GetDataResult>} Observable of the result
    */
@@ -357,6 +357,78 @@ export class Netconf extends NetconfClient{
             $: {
               'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
               'nc:operation': 'delete',
+            },
+            _: value,
+          }));
+        });
+      }),
+      switchMap(() => this.editConfig(targetObj)),
+    );
+  }
+
+  /**
+   * Replaces a leaf in the configuration. Leaf is specified by XPath filter.
+   *
+   * @param {string} xpath XPath filter of the leaf where the item needs to be replaced
+   *     for example,  `/aaa/authentication/users/user`
+   * @param {NetconfType} values object containing the leaf key, for example `{name: 'admin'}`
+   * @returns {Observable<EditConfigResult>} Observable of the result
+   */
+  public editConfigReplace(xpath: string, values: NetconfType): Observable<EditConfigResult> {
+    const targetObj = {};
+    const schema = this.fetchSchema(xpath);
+
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
+      this.checkMultipleEdit(),
+      tap((configObj: NetconfType[]) => {
+        configObj.forEach((o: NetconfType) => {
+          Object.assign(o, values);
+          o.$ = {
+            ...o.$ ?? {} as SafeAny,
+            'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+            'nc:operation': 'replace',
+          };
+        });
+      }),
+      switchMap(() => this.editConfig(targetObj)),
+    );
+  }
+
+  /**
+   * Replaces a list item in the configuration.
+   *
+   * @param {string} xpath XPath filter of the object where the item needs to be replaced
+   * @param {NetconfPrimitiveType[]} listItems List of items to replace
+   * @returns {Observable<EditConfigResult>} Observable of the result
+   */
+  public editConfigReplaceListItems(xpath: string, listItems: NetconfPrimitiveType[]): Observable<EditConfigResult> {
+    const targetObj = {};
+    const schema = this.fetchSchema(xpath);
+
+    return new NetconfBuildConfig(
+      xpath,
+      schema,
+      this.params.namespace,
+      this.guessNamespace(xpath)
+    ).build(targetObj).pipe(
+      this.checkMultipleEdit(),
+      tap((configObj: NetconfType[]) => {
+        configObj.forEach((o: NetconfType) => {
+          const foundParent = this.findParent(targetObj, o);
+          if(foundParent === undefined){
+            throw new Error('Failed to build the edit config message matching the XPath/Schema');
+          }
+          const parent = foundParent.parent;
+          const index = foundParent.index;
+          parent[index] = listItems.map((value: NetconfPrimitiveType) => ({
+            $: {
+              'xmlns:nc': 'urn:ietf:params:xml:ns:netconf:base:1.0',
+              'nc:operation': 'replace',
             },
             _: value,
           }));
