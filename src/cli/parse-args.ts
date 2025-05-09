@@ -405,7 +405,7 @@ export async function parseArgs(): Promise<CliOptions | undefined> {
 
     // Connection string
     } else {
-      if(!conn) {
+      if(!conn && !operationType) {
         conn = args.shift();
       } else {
         stream = args.shift();
