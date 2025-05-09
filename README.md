@@ -52,15 +52,28 @@ Install the package:
 npm install netconf-client
 ```
 
-Basic usage:
+Basic usage example (substitute the host, port, username, and password with your own values):
 
 ```typescript
+// quick-start.mjs
+
 import { Netconf } from 'netconf-client';
 import { firstValueFrom } from 'rxjs';
 
 const netconf = new Netconf({ host: 'localhost', port: 2022, user: 'admin', pass: 'admin' });
 const { result } = await firstValueFrom(netconf.getData('//aaa//user[name="admin"]'));
+console.log(result);
+await firstValueFrom(netconf.close());
 ```
+
+Run the script:
+
+```bash
+node quick-start.mjs
+```
+
+
+
 
 ## Installation
 
