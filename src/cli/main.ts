@@ -120,7 +120,7 @@ function execNetconfOperation(client: Netconf, cliOptions: CliOptions): Observab
       filter((data: NotificationResult | RpcResult | undefined) => {
         if(data?.result?.hasOwnProperty('ok')){
           // This is a RPC Reply with OK, we skip it
-          Output.info('Started subscription. Ctrl+C to stop.');
+          Output.info(`Started subscription. Ctrl+C to stop. PID=${process.pid}`);
           return false;
         }
         return true;
